@@ -42,6 +42,27 @@ function build(htmlPath){
     getElementById:id=>els[id]||mk(id,{}),
     querySelectorAll:sel=>all().filter(e=>matches(e,sel))
   };
-  return {document, els, fire:(...a)=>listener(...a), get listener(){return listener;}};
+
+  // minimal window.history: enough to drive real popstate-based navigation.
+  // back()/forward() dispatch synchronously - real browsers queue popstate as
+  // a task, but nothing else runs between a click and that task here, so the
+  // end state is identical and tests can assert right after calling back().
+  let stack=[{state:null}], at=0; const popListeners=[];
+  function firePop(){ const ev={state:stack[at].state}; popListeners.slice().forEach(f=>f(ev)); }
+  const history={
+    pushState:(state)=>{ stack=stack.slice(0,at+1); stack.push({state}); at=stack.length-1; },
+    replaceState:(state)=>{ stack[at]={state}; },
+    back:()=>{ if(at>0){ at--; firePop(); } },
+    forward:()=>{ if(at<stack.length-1){ at++; firePop(); } },
+    get length(){ return stack.length; },
+    get state(){ return stack[at].state; }
+  };
+  const window={
+    history,
+    addEventListener:(t,f)=>{ if(t==='popstate') popListeners.push(f); },
+    removeEventListener:(t,f)=>{ const i=popListeners.indexOf(f); if(i>=0) popListeners.splice(i,1); }
+  };
+
+  return {document, window, els, fire:(...a)=>listener(...a), get listener(){return listener;}};
 }
 module.exports={build};

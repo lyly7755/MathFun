@@ -33,7 +33,7 @@ dom.els.b24.onclick();
 chk('back -> 24 menu               ', shown().join(), 'menu24');
 
 // every menu button is wired
-for(const id of ['pick-match','pick-g24','dailybtn','daily24btn','b24','back','hint24','undo24','reset24','go24','next24'])
+for(const id of ['pick-match','pick-g24','dailybtn','daily24btn','b24','back','homebtn','home24btn','hint24','undo24','reset24','go24','next24'])
   chk((id+' wired').padEnd(30), typeof dom.els[id].onclick, 'function');
 for(const b of document.querySelectorAll('.tier[data-t24]'))
   chk(('24 '+b.getAttribute('data-t24')+' tier wired').padEnd(30), typeof b.onclick, 'function');

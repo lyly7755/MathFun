@@ -7,7 +7,11 @@
 <meta name="mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
 <meta name="theme-color" content="#1b1410">
-<title>Two Puzzles</title>
+<link rel="manifest" href="manifest.json">
+<link rel="icon" href="icons/icon-192.png" sizes="192x192" type="image/png">
+<link rel="icon" href="icons/icon-512.png" sizes="512x512" type="image/png">
+<link rel="apple-touch-icon" href="icons/apple-touch-icon.png">
+<title>Math Fun</title>
 <style>
   :root{
     --bg:#181210; --bg2:#241a15; --panel:#2e211a;
@@ -31,7 +35,7 @@
     display:flex;flex-direction:column;user-select:none;
     padding:env(safe-area-inset-top) env(safe-area-inset-right) env(safe-area-inset-bottom) env(safe-area-inset-left);
   }
-  .screen{display:none;flex:1;min-height:0}
+  .screen{display:none;flex:1;min-height:0;position:relative}
   .screen.on{display:flex;flex-direction:column}
 
   /* ---- menu ---- */
@@ -63,6 +67,7 @@
   .lvl small{display:block;font-weight:400;color:var(--dim);font-size:12px;letter-spacing:0;margin-top:2px}
   .navbtn{background:none;border:none;color:var(--dim);font-size:24px;padding:6px 14px;line-height:1;cursor:pointer;font-family:inherit}
   .navbtn:disabled{opacity:.25}
+  .navbtn.home{position:absolute;top:4px;left:4px;z-index:1}
   .bar{display:flex;align-items:center;justify-content:center;gap:16px;font-size:13px;color:var(--dim);padding:2px 16px}
   .bar .stars{color:var(--sel);letter-spacing:2px}
   .bar .clock{font-variant-numeric:tabular-nums;font-feature-settings:"tnum"}
@@ -155,7 +160,7 @@
 <body>
 
 <div class="screen on" id="home">
-  <div class="title">Two Puzzles<span>PICK YOUR GAME</span></div>
+  <div class="title">Math Fun<span>PICK YOUR GAME</span></div>
   <div class="tiers">
     <button class="tier" id="pick-match">
       <span>Matchstick Math<em>move sticks to fix a broken equation</em></span><span class="sc" id="hs-match"></span>
@@ -168,6 +173,7 @@
 </div>
 
 <div class="screen" id="menu">
+  <button class="navbtn home" id="homebtn">&#8592;</button>
   <div class="title">Matchstick Math<span>MOVE • THINK • SOLVE</span></div>
   <div class="tiers">
     <button class="tier daily" id="dailybtn">
@@ -188,6 +194,7 @@
 </div>
 
 <div class="screen" id="menu24">
+  <button class="navbtn home" id="home24btn">&#8592;</button>
   <div class="title">24 Game<span>FOUR CARDS &bull; MAKE 24</span></div>
   <div class="tiers">
     <button class="tier daily" id="daily24btn">
@@ -597,6 +604,30 @@ function openDaily(){
   load(dailyIdx(dayNo()));
 }
 
+/* ---------- back-button / history ----------
+   Android's hardware back button fires popstate instead of running our in-app
+   back buttons, so every "enter a deeper screen" action pushes a history entry
+   and popstate replays the matching shallower screen: board -> menu -> picker.
+   Without this, back exits the app mid-puzzle instead of retracing screens.
+   HIST_OK is false in the Node test harness (no window/history there), which
+   makes pushScreen/goBackScreen no-ops so existing tests see unchanged behavior. */
+var HIST_OK = (typeof window !== 'undefined') && !!(window.history && window.history.pushState);
+function pushScreen(name){
+  if(!HIST_OK) return;
+  try{ window.history.pushState({screen:name}, ''); }catch(err){}
+}
+function goBackScreen(){
+  if(!HIST_OK) return false;
+  try{ window.history.back(); return true; }catch(err){ return false; }
+}
+function onPopState(ev){
+  var screen = ev && ev.state && ev.state.screen;
+  if(screen==='menu') showMenu();
+  else if(screen==='menu24') showMenu24();
+  else showHome();
+}
+if(HIST_OK) window.addEventListener('popstate', onPopState);
+
 /* ---------- 24 game menu ---------- */
 function showMenu24(){
   stopClock();
@@ -991,14 +1022,16 @@ $('reset').onclick = function(){
   $('clock').textContent=fmt(elapsed);
 };
 $('hint').onclick = function(){ showHint(); };
-$('dailybtn').onclick = function(){ openDaily(); };
-$('go').onclick   = function(){ if(tier==='daily') showMenu(); else load(idx+1); };
+$('dailybtn').onclick = function(){ openDaily(); pushScreen('game'); };
+$('go').onclick   = function(){ if(tier==='daily'){ if(!goBackScreen()) showMenu(); } else load(idx+1); };
 $('next').onclick = function(){ load(idx+1); };
-$('back').onclick = function(){ showMenu(); };
+$('back').onclick = function(){ if(!goBackScreen()) showMenu(); };
 
-$('pick-match').onclick = function(){ showMenu(); };
-$('pick-g24').onclick   = function(){ showMenu24(); };
-$('b24').onclick    = function(){ showMenu24(); };
+$('pick-match').onclick = function(){ showMenu(); pushScreen('menu'); };
+$('pick-g24').onclick   = function(){ showMenu24(); pushScreen('menu24'); };
+$('homebtn').onclick    = function(){ if(!goBackScreen()) showHome(); };
+$('home24btn').onclick  = function(){ if(!goBackScreen()) showHome(); };
+$('b24').onclick    = function(){ if(!goBackScreen()) showMenu24(); };
 $('hint24').onclick = function(){ hint24(); };
 $('undo24').onclick = function(){
   if(!g24.hist.length) return;
@@ -1013,9 +1046,9 @@ $('reset24').onclick = function(){
   var keep=curTime(); load24(g24.idx); g24.clean=false; elapsed=keep;
   $('clock24').textContent=fmt(elapsed);
 };
-$('go24').onclick   = function(){ if(g24.tier==='daily') showMenu24(); else load24(g24.idx+1); };
+$('go24').onclick   = function(){ if(g24.tier==='daily'){ if(!goBackScreen()) showMenu24(); } else load24(g24.idx+1); };
 $('next24').onclick = function(){ load24(g24.idx+1); };
-$('daily24btn').onclick = function(){ openDaily24(); };
+$('daily24btn').onclick = function(){ openDaily24(); pushScreen('g24'); };
 
 $('cardarea').addEventListener('click', function(ev){
   var el=ev.target;
@@ -1032,7 +1065,7 @@ for(var qi=0; qi<t24Btns.length; qi++){
   (function(btn){
     var t=btn.getAttribute('data-t24');
     if(!t || !HANDS24[t]) return;
-    btn.onclick=function(){ openTier24(t); };
+    btn.onclick=function(){ openTier24(t); pushScreen('g24'); };
   })(t24Btns[qi]);
 }
 
@@ -1043,8 +1076,16 @@ for(var bi=0; bi<tierBtns.length; bi++){
   (function(btn){
     var t=btn.getAttribute('data-tier');
     if(!t || !PACKS[t]) return;
-    btn.onclick = function(){ openTier(t); };
+    btn.onclick = function(){ openTier(t); pushScreen('game'); };
   })(tierBtns[bi]);
+}
+
+/* offline shell: guarded so it's a no-op in the Node test harness, where
+   neither navigator nor window exist */
+if(typeof navigator !== 'undefined' && navigator.serviceWorker && typeof window !== 'undefined'){
+  window.addEventListener('load', function(){
+    navigator.serviceWorker.register('sw.js').catch(function(){});
+  });
 }
 
 showHome();

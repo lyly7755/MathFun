@@ -1,4 +1,4 @@
-# Two Puzzles
+# Math Fun
 
 Matchstick Math and the 24 Game in one self-contained HTML file.
 
@@ -12,7 +12,7 @@ Both track a timer, 3-star scoring and a shared daily streak.
 
 Open `index.html` in any browser, or serve it:
 
-    python3 -m http.server 8000
+    python3 -m http.server 8000    # Windows: use `python` instead if python3 isn't installed
 
 ## Develop
 

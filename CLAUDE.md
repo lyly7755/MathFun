@@ -1,4 +1,4 @@
-# Two Puzzles — Matchstick Math + 24 Game
+# Math Fun — Matchstick Math + 24 Game
 
 A single self-contained HTML file. No build step, no bundler, no runtime dependencies.
 `index.html` is the whole app: markup, CSS and JS inlined so it runs offline from
@@ -17,7 +17,7 @@ A single self-contained HTML file. No build step, no bundler, no runtime depende
 
     ./run-tests.sh          # ~90s
     ./run-tests.sh --all    # adds reverify (exhaustive, ~3 min)
-    python3 -m http.server 8000    # then open http://localhost:8000
+    python3 -m http.server 8000    # then open http://localhost:8000 (Windows: use `python` instead if python3 isn't installed)
 
 ## Invariants — break these and the game lies to the player
 
