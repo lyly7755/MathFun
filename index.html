@@ -1,0 +1,1053 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no,viewport-fit=cover">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="theme-color" content="#1b1410">
+<title>Two Puzzles</title>
+<style>
+  :root{
+    --bg:#181210; --bg2:#241a15; --panel:#2e211a;
+    --sel:#ffd166; --ghost:#6b543f; --ok:#5fbf7a; --txt:#f3e7d8; --dim:#a08b76;
+    /* Card size is bound by BOTH axes: four cards across (60px covers padding, gaps
+       and safe-area inset) and the height left over after the surrounding chrome
+       (~225px of header, bar, operators, message and footer). Whichever is tighter
+       wins, so the row never wraps and never runs off the bottom in landscape. */
+    --cw: clamp(40px, min(calc((100vw - 60px) / 4), calc((100vh - 225px) / 1.42)), 104px);
+  }
+  *{box-sizing:border-box;-webkit-tap-highlight-color:transparent}
+  html,body{margin:0;height:100%;overflow:hidden}
+  @supports (height:100dvh){
+    html,body{height:100dvh}
+    /* dvh excludes the mobile URL bar, so cards can't overflow when it retracts */
+    :root{ --cw: clamp(40px, min(calc((100vw - 60px) / 4), calc((100dvh - 225px) / 1.42)), 104px); }
+  }
+  body{
+    background:radial-gradient(120% 90% at 50% 0%,var(--bg2),var(--bg));
+    color:var(--txt);font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",system-ui,sans-serif;
+    display:flex;flex-direction:column;user-select:none;
+    padding:env(safe-area-inset-top) env(safe-area-inset-right) env(safe-area-inset-bottom) env(safe-area-inset-left);
+  }
+  .screen{display:none;flex:1;min-height:0}
+  .screen.on{display:flex;flex-direction:column}
+
+  /* ---- menu ---- */
+  #menu{align-items:center;justify-content:center;gap:14px;padding:24px}
+  .title{font-size:30px;font-weight:700;letter-spacing:.5px;text-align:center;line-height:1.15}
+  .title span{display:block;font-size:13px;font-weight:400;color:var(--dim);letter-spacing:2.5px;margin-top:8px}
+  .tiers{display:flex;flex-direction:column;gap:12px;width:100%;max-width:340px;margin-top:18px}
+  .tier{
+    display:flex;align-items:center;justify-content:space-between;gap:12px;
+    padding:17px 20px;border-radius:16px;border:1px solid rgba(255,255,255,.09);
+    background:var(--panel);color:var(--txt);font:inherit;font-size:17px;font-weight:600;cursor:pointer;text-align:left;
+  }
+  .tier:active{background:#3b2a20}
+  .tier em{display:block;font-style:normal;font-size:12px;font-weight:400;color:var(--dim);margin-top:3px}
+  .tier .sc{font-size:13px;color:var(--sel);white-space:nowrap;font-weight:600}
+  .total{color:var(--dim);font-size:13px;margin-top:4px}
+  .tier.daily{background:#3a2a1c;border-color:rgba(255,209,102,.28)}
+  .stats{
+    display:flex;gap:0;width:100%;max-width:340px;margin-top:18px;
+    border-top:1px solid rgba(255,255,255,.07);padding-top:14px
+  }
+  .stats div{flex:1;text-align:center}
+  .stats b{display:block;font-size:19px;color:var(--txt);font-weight:700;line-height:1.2}
+  .stats span{font-size:10.5px;color:var(--dim);letter-spacing:.7px;text-transform:uppercase}
+
+  /* ---- game ---- */
+  header{display:flex;align-items:center;justify-content:space-between;padding:12px 14px 4px}
+  .lvl{text-align:center;font-size:15px;font-weight:600;letter-spacing:.4px}
+  .lvl small{display:block;font-weight:400;color:var(--dim);font-size:12px;letter-spacing:0;margin-top:2px}
+  .navbtn{background:none;border:none;color:var(--dim);font-size:24px;padding:6px 14px;line-height:1;cursor:pointer;font-family:inherit}
+  .navbtn:disabled{opacity:.25}
+  .bar{display:flex;align-items:center;justify-content:center;gap:16px;font-size:13px;color:var(--dim);padding:2px 16px}
+  .bar .stars{color:var(--sel);letter-spacing:2px}
+  .bar .clock{font-variant-numeric:tabular-nums;font-feature-settings:"tnum"}
+
+  main{flex:1;display:flex;align-items:center;justify-content:center;padding:6px 10px;min-height:0}
+  svg{width:100%;height:100%;max-height:42vh;max-width:760px;touch-action:manipulation}
+  @supports (height:100dvh){ svg{max-height:42dvh} }
+
+  .cell{fill:rgba(255,255,255,.028)}
+  .stick{cursor:pointer}
+  .stick.bad .body{fill:#e08b7a;stroke:rgba(0,0,0,.25)}
+  .stick.bad .head{fill:#8d2f22}
+  .stick .hit,.slot .hit{fill:transparent}
+  .stick .body{fill:url(#g-wood);stroke:rgba(0,0,0,.3);stroke-width:.8}
+  .stick .head{fill:url(#g-head)}
+  .stick.sel .body{fill:var(--sel);stroke:rgba(255,255,255,.25)}
+  .stick.sel{filter:drop-shadow(0 0 10px rgba(255,209,102,.85))}
+  .slot{cursor:pointer}
+  .slot .body{fill:none;stroke:var(--ghost);stroke-width:3;stroke-dasharray:7 6;opacity:.9}
+  .slot.blind .body{stroke:none}
+  .stick.hint .body{fill:#8ad4ff;stroke:rgba(255,255,255,.3)}
+  .stick.hint{filter:drop-shadow(0 0 11px rgba(138,212,255,.95))}
+  .slot.hint .body{stroke:#8ad4ff;stroke-dasharray:none;opacity:1;stroke-width:3.5}
+  .win .stick .body{fill:#8fe0a3;stroke:rgba(0,0,0,.2)}
+  .win .stick .head{fill:#3f9d5b}
+
+  /* ---- 24 game ---- */
+  #cardarea{gap:10px;flex-wrap:nowrap;padding:6px 12px}
+  .card{
+    width:var(--cw);height:calc(var(--cw) * 1.42);
+    border-radius:calc(var(--cw) * .14);background:linear-gradient(170deg,#fdf6e8,#e6d6bd);
+    color:#1e1a17;display:flex;align-items:center;justify-content:center;flex-direction:column;
+    font-weight:700;cursor:pointer;position:relative;box-shadow:0 3px 8px rgba(0,0,0,.45);
+    border:2px solid transparent;flex:0 0 auto
+  }
+  .card .rank{font-size:calc(var(--cw) * .42);line-height:1}
+  .card .suit{font-size:calc(var(--cw) * .22);margin-top:2px}
+  .card.red{color:#b3261e}
+  .card.sel{border-color:var(--sel);box-shadow:0 0 14px rgba(255,209,102,.9);transform:translateY(-6px)}
+  .card.made{background:linear-gradient(170deg,#cfe9d5,#a8d3b4)}
+  .card.gone{display:none}
+  .card.win{background:linear-gradient(170deg,#8fe0a3,#5fbf7a);border-color:#3f9d5b}
+  .card .frac{font-size:calc(var(--cw) * .26)}
+  .ops{display:flex;gap:9px;justify-content:center;padding:2px 12px 0}
+  .opbtn{
+    width:54px;height:48px;border-radius:12px;border:1px solid rgba(255,255,255,.1);
+    background:var(--panel);color:var(--txt);font-size:23px;font-weight:700;cursor:pointer;font-family:inherit
+  }
+  .opbtn.on{background:var(--sel);color:#241a15;border-color:var(--sel)}
+  .opbtn:disabled{opacity:.3}
+
+  .msg{min-height:44px;text-align:center;font-size:15px;font-weight:600;letter-spacing:.3px;padding:0 16px}
+  .msg.ok{color:var(--ok)}
+  .msg.no{color:#e08b7a}
+  .msg .big{display:block;color:var(--sel);font-size:26px;letter-spacing:5px;margin-bottom:2px}
+
+  /* short phones (SE, and anything with the keyboard-less landscape squeeze) */
+  @media (max-height:640px){
+    header{padding:8px 12px 2px}
+    .msg{min-height:32px;font-size:14px}
+    .msg .big{font-size:22px}
+    button.act{padding:12px 6px}
+    footer{padding:4px 12px 12px !important}
+    .opbtn{height:44px}
+  }
+  /* phone in landscape: height, not width, is the binding constraint */
+  @media (orientation:landscape) and (max-height:520px){
+    svg{max-height:52vh}
+    .msg{min-height:24px}
+    #cardarea{padding:2px 12px}
+  }
+  /* tablet: centre and cap rather than stretch */
+  @media (min-width:600px){
+    .tiers{max-width:420px}
+    .stats{max-width:420px}
+    .title{font-size:34px}
+  }
+
+  footer{display:flex;gap:10px;padding:6px 16px 20px;justify-content:center}
+  button.act{
+    flex:1;max-width:170px;padding:15px 6px;border-radius:14px;
+    border:1px solid rgba(255,255,255,.1);background:var(--panel);
+    color:var(--txt);font-family:inherit;font-size:15px;font-weight:600;cursor:pointer
+  }
+  button.act:active{background:#3b2a20}
+  button.act:disabled{opacity:.35}
+  button.act.primary{background:#7a4a2a;border-color:rgba(255,255,255,.15)}
+</style>
+</head>
+<body>
+
+<div class="screen on" id="home">
+  <div class="title">Two Puzzles<span>PICK YOUR GAME</span></div>
+  <div class="tiers">
+    <button class="tier" id="pick-match">
+      <span>Matchstick Math<em>move sticks to fix a broken equation</em></span><span class="sc" id="hs-match"></span>
+    </button>
+    <button class="tier" id="pick-g24">
+      <span>24 Game<em>combine four cards to make 24</em></span><span class="sc" id="hs-g24"></span>
+    </button>
+  </div>
+  <div class="stats" id="homestats"></div>
+</div>
+
+<div class="screen" id="menu">
+  <div class="title">Matchstick Math<span>MOVE • THINK • SOLVE</span></div>
+  <div class="tiers">
+    <button class="tier daily" id="dailybtn">
+      <span>Daily Puzzle<em id="dailysub">&nbsp;</em></span><span class="sc" id="sc-daily"></span>
+    </button>
+    <button class="tier" data-tier="easy">
+      <span>Easy<em>60 puzzles &middot; move 1 stick &middot; easiest first</em></span><span class="sc" id="sc-easy"></span>
+    </button>
+    <button class="tier" data-tier="medium">
+      <span>Medium<em>60 puzzles &middot; bigger numbers &middot; easiest first</em></span><span class="sc" id="sc-medium"></span>
+    </button>
+    <button class="tier" data-tier="hard">
+      <span>Hard<em>60 puzzles &middot; 2 sticks, no guides &middot; easiest first</em></span><span class="sc" id="sc-hard"></span>
+    </button>
+  </div>
+  <div class="stats" id="stats"></div>
+  <div class="total" id="total"></div>
+</div>
+
+<div class="screen" id="menu24">
+  <div class="title">24 Game<span>FOUR CARDS &bull; MAKE 24</span></div>
+  <div class="tiers">
+    <button class="tier daily" id="daily24btn">
+      <span>Daily Hand<em id="daily24sub">&nbsp;</em></span><span class="sc" id="sc24-daily"></span>
+    </button>
+    <button class="tier" data-t24="easy">
+      <span>Easy<em>60 hands &middot; many ways to solve</em></span><span class="sc" id="sc24-easy"></span>
+    </button>
+    <button class="tier" data-t24="medium">
+      <span>Medium<em>60 hands &middot; a handful of ways</em></span><span class="sc" id="sc24-medium"></span>
+    </button>
+    <button class="tier" data-t24="hard">
+      <span>Hard<em>60 hands &middot; 3 ways or fewer</em></span><span class="sc" id="sc24-hard"></span>
+    </button>
+  </div>
+  <div class="total" id="total24"></div>
+</div>
+
+<div class="screen" id="g24">
+  <header>
+    <button class="navbtn" id="b24">&#8592;</button>
+    <div class="lvl"><span id="lvlnum24">24 Game</span><small id="sub24"></small></div>
+    <button class="navbtn" id="next24">&#8250;</button>
+  </header>
+  <div class="bar">
+    <span class="stars" id="stars24">&#9734;&#9734;&#9734;</span>
+    <span class="clock" id="clock24">0:00</span>
+    <span id="par24"></span>
+  </div>
+  <main id="cardarea"></main>
+  <div class="ops" id="ops"></div>
+  <div class="msg" id="msg24"></div>
+  <footer>
+    <button class="act" id="hint24">Hint</button>
+    <button class="act" id="undo24">Undo</button>
+    <button class="act" id="reset24">Reset</button>
+    <button class="act primary" id="go24">Skip &#8250;</button>
+  </footer>
+</div>
+
+<div class="screen" id="game">
+  <header>
+    <button class="navbtn" id="back">&#8592;</button>
+    <div class="lvl"><span id="lvlnum">Level 1</span><small id="sub"></small></div>
+    <button class="navbtn" id="next">&#8250;</button>
+  </header>
+  <div class="bar">
+    <span class="stars" id="lvlstars">&#9734;&#9734;&#9734;</span>
+    <span class="clock" id="clock">0:00</span>
+    <span id="par"></span>
+  </div>
+  <main><svg id="board" xmlns="http://www.w3.org/2000/svg"></svg></main>
+  <div class="msg" id="msg"></div>
+  <footer>
+    <button class="act" id="hint">Hint</button>
+    <button class="act" id="undo">Undo</button>
+    <button class="act" id="reset">Reset</button>
+    <button class="act primary" id="go">Skip &#8250;</button>
+  </footer>
+</div>
+
+<script>
+/* ---------- puzzle data: every level machine-verified by a brute-force solver ---------- */
+var RAW={"easy":[["4-5=1",1,"4-3=1"],["4+2=7",1,"4+3=7"],["3-4=1",1,"5-4=1"],["3-1=4",1,"5-1=4"],["5-1=2",1,"3-1=2"],["5-2=5",1,"5-2=3"],["4+5=7",1,"4+3=7"],["5+4=7",1,"3+4=7"],["3-2=3",1,"5-2=3"],["6-4=5",1,"9-4=5"],["6-7=2",1,"9-7=2"],["6-2=3",1,"6-3=3"],["2+9=8",1,"2+6=8"],["2+3=6",1,"3+3=6"],["5+4=6",1,"5+4=9"],["7-1=9",1,"7-1=6"],["7+3=9",1,"7+2=9"],["2+6=9",1,"3+6=9"],["7-1=2",1,"1+1=2"],["9-6=2",1,"9-6=3"],["9-1=5",1,"6-1=5"],["9-3=7",1,"9-2=7"],["2-4=8",1,"2+4=6"],["3+5=6",1,"3+3=6"],["1+5=2",1,"7-5=2"],["4-1=9",1,"4+1=5"],["5+7=2",1,"9-7=2"],["3+4=5",1,"9-4=5"],["2-6=7",1,"2+5=7"],["5+5=1",1,"6-5=1"],["7+5=1",1,"7-6=1"],["3-2=6",1,"3+2=5"],["9+1=2",1,"9-7=2"],["2+1=8",1,"2+7=9"],["1-2=6",1,"7-2=5"],["3-4=6",1,"9-4=5"],["9+4=1",1,"3+4=7"],["3-2=9",1,"3+2=5"],["7-5=7",1,"7-6=1"],["8-1=2",1,"9-7=2"],["7+6=1",1,"1+6=7"],["1-9=2",1,"7-5=2"],["5-4=8",1,"5+4=9"],["6-4=9",1,"5+4=9"],["3+1=8",1,"9-1=8"],["5-4=9",1,"9-4=5"],["3-7=8",1,"9-1=8"],["3-8=7",1,"9-8=1"],["7+5=5",1,"1+5=6"],["1+6=5",1,"1+5=6"],["5+1=8",1,"9-1=8"],["1-9=6",1,"1+5=6"],["1-5=8",1,"1+5=6"],["8+7=5",1,"8+1=9"],["3+8=3",1,"3+6=9"],["5-7=8",1,"9-1=8"],["1+9=5",1,"1+5=6"],["8-1=6",1,"9-1=8"],["6+9=5",1,"6+3=9"],["6-9=9",1,"6+3=9"]],"medium":[["10-5=3",1,"10-5=5"],["6+1=10",1,"9+1=10"],["4+6=16",1,"4+6=10"],["15-9=4",1,"13-9=4"],["2+8=19",1,"2+8=10"],["7+6=15",1,"7+6=13"],["16-2=8",1,"10-2=8"],["5+5=16",1,"5+5=10"],["17-4=1",1,"11-4=7"],["4-8=72",1,"4+8=12"],["16-9=1",1,"10-9=1"],["19-5=5",1,"10-5=5"],["1+4=17",1,"7+4=11"],["8+8=19",1,"8+8=16"],["12+3=5",1,"12-3=9"],["3+2=71",1,"9+2=11"],["4+5=70",1,"4+6=10"],["3+6=14",1,"9+5=14"],["4-9=73",1,"4+9=13"],["16+3=7",1,"16-9=7"],["73-1=6",1,"13-7=6"],["73-7=5",1,"13-7=6"],["7+3=76",1,"7+9=16"],["5-9=74",1,"5+9=14"],["14+5=8",1,"14-6=8"],["5-8=14",1,"5+9=14"],["19-8=8",1,"16-8=8"],["70-2=9",1,"10-2=8"],["9-8=77",1,"9+8=17"],["15+6=7",1,"15-8=7"],["18-4=5",1,"10-4=6"],["71-3=9",1,"11-3=8"],["73-5=6",1,"13-5=8"],["3+9=17",1,"3+8=11"],["17+8=5",1,"17-8=9"],["16-5=6",1,"15-9=6"],["15+8=1",1,"15-8=7"],["1+8=75",1,"7+8=15"],["11-9=6",1,"11-3=8"],["1+9=76",1,"7+9=16"],["7-9=18",1,"7+9=16"],["8-7=19",1,"8+7=15"],["6+1=19",1,"6+7=13"],["1+5=18",1,"1+9=10"],["19-7=6",1,"15-7=8"],["9+6=11",1,"3+8=11"],["9+1=18",1,"9+7=16"],["8+1=19",1,"8+7=15"],["15-8=3",1,"15-6=9"],["3+6=19",1,"9+6=15"],["3+8=15",1,"9+6=15"],["18-3=8",1,"18-9=9"],["78-3=9",1,"18-9=9"],["16-5=9",1,"15-6=9"],["18-8=3",1,"18-9=9"],["9-6=16",1,"9+6=15"],["9+5=78",1,"9+9=18"],["8+9=16",1,"9+9=18"],["9+8=19",1,"9+9=18"],["18-5=8",1,"18-9=9"]],"hard":[["4-5=2",2,"4-2=2"],["4-3=3",2,"4-2=2"],["12-4=6",2,"13-4=9"],["7+2=19",2,"7+3=10"],["13-2=8",2,"13-5=8"],["10-4=5",2,"13-4=9"],["5+3=16",2,"5+5=10"],["8-4=3",2,"5+4=9"],["7+2=76",2,"7+9=16"],["75-4=5",2,"13-4=9"],["18-6=6",2,"18-9=9"],["12+5=2",2,"12-9=3"],["3-9=1",2,"6-5=1"],["3-7=3",2,"2+1=3"],["16+4=5",2,"10-4=6"],["5+4=75",2,"9+4=13"],["4+5=75",2,"4+9=13"],["70-3=7",2,"16-9=7"],["3+7=3",2,"9-7=2"],["8-7=5",2,"9-1=8"],["6+2=71",2,"8+3=11"],["6+5=2",2,"8-5=3"],["8-2=76",2,"8+2=10"],["15+8=2",2,"10-8=2"],["7-6=16",2,"7+6=13"],["2+9=76",2,"2+8=10"],["12-1=8",2,"13-7=6"],["1-9=9",2,"1+5=6"],["5+4=79",2,"6+4=10"],["5-7=73",2,"5+7=12"],["18+2=3",2,"10-2=8"],["71+8=3",2,"17-8=9"],["8-1=3",2,"9-7=2"],["19-5=1",2,"12-5=7"],["73-8=1",2,"15-8=7"],["8+5=78",2,"8+8=16"],["13-1=9",2,"12-7=5"],["15-8=2",2,"15-6=9"],["10+3=6",2,"10-2=8"],["8-3=73",2,"8+5=13"],["3+5=73",2,"3+9=12"],["10+9=6",2,"18-9=9"],["9-3=17",2,"9+2=11"],["5-8=71",2,"3+8=11"],["71+6=9",2,"17-8=9"],["10+6=8",2,"16-8=8"],["70-8=3",2,"18-9=9"],["78-3=8",2,"16-8=8"],["79-1=6",2,"15-7=8"],["18+5=8",2,"16-8=8"],["78+3=5",2,"18-9=9"],["76-9=6",2,"18-9=9"],["6-5=19",2,"5+5=10"],["76-8=3",2,"18-9=9"],["70-9=8",2,"16-8=8"],["18-6=3",2,"10-8=2"],["13+9=8",2,"18-9=9"],["8-9=10",2,"8+2=10"],["73-8=9",2,"18-9=9"],["78-9=6",2,"16-8=8"]],"daily":[["6-8=13",1,"5+8=13"],["6+3=78",2,"9+9=18"],["9-3=2",2,"6-3=3"],["8-3=9",1,"6+3=9"],["76-9=8",1,"16-8=8"],["13+9=5",1,"13-8=5"],["78-5=6",2,"18-9=9"],["3-4=18",2,"9+4=13"],["16+2=9",2,"10-2=8"],["8-2=8",1,"6+2=8"],["2+9=18",1,"2+8=10"],["3-9=71",2,"2+9=11"],["77-3=8",1,"17-9=8"],["15-5=6",2,"10-5=5"],["2-6=17",2,"2+9=11"],["76-5=4",2,"10-6=4"],["8-3=78",2,"9+9=18"],["6-6=72",1,"6+6=12"],["1-9=5",2,"7-2=5"],["76+9=6",2,"16-8=8"],["78-6=6",2,"16-8=8"],["5+6=17",2,"3+8=11"],["1+3=3",1,"1+2=3"],["6+3=10",2,"6+9=15"],["7+6=73",2,"7+8=15"],["8-5=14",1,"9+5=14"],["9+5=1",2,"2+5=7"],["19+8=5",2,"18-9=9"],["16+8=9",1,"16-8=8"],["19+8=9",2,"16-8=8"],["8-4=5",2,"5+4=9"],["70-8=6",2,"16-8=8"],["2+8=16",1,"2+8=10"],["15-3=8",1,"15-9=6"],["2+6=71",2,"3+8=11"],["4+1=17",1,"4+7=11"],["75-8=2",2,"10-8=2"],["19+4=5",2,"10-4=6"],["8-3=70",2,"8+2=10"],["8-3=16",2,"6+9=15"],["5+6=16",1,"9+6=15"],["78-1=5",2,"16-7=9"],["19-4=5",1,"13-4=9"],["1+6=75",2,"7+6=13"],["3+1=9",2,"5+1=6"],["12-3=6",1,"12-3=9"],["1+2=2",1,"1+2=3"],["8-7=73",2,"8+7=15"],["9+2=8",1,"6+2=8"],["9+8=70",2,"8+8=16"],["16+8=3",2,"18-9=9"],["8+7=2",2,"8+1=9"],["4+5=79",2,"4+6=10"],["18-3=9",2,"10-2=8"],["1+3=78",2,"7+9=16"],["79-4=5",2,"10-4=6"],["3+8=18",1,"9+9=18"],["6+5=75",1,"6+9=15"],["10+8=9",2,"16-8=8"],["5+4=18",1,"6+4=10"],["19+9=8",2,"16-8=8"],["2+6=19",2,"9+6=15"],["10-4=3",2,"13-4=9"],["15-9=5",2,"10-5=5"],["9-6=71",2,"3+8=11"],["7-8=12",2,"7+6=13"],["9+2=78",2,"9+9=18"],["6-2=78",2,"8+2=10"],["1+9=16",1,"1+9=10"],["75+9=9",2,"18-9=9"],["6-3=5",1,"6-3=3"],["8-9=76",2,"9+9=18"],["4+1=2",2,"4+1=5"],["11+3=2",1,"11-9=2"],["6+2=9",1,"6+3=9"],["3+9=70",2,"2+8=10"],["6+7=73",2,"8+7=15"],["2+6=16",2,"9+6=15"],["7+5=9",2,"7+2=9"],["14+6=9",1,"14-6=8"],["15+1=9",2,"10-1=9"],["13-7=5",1,"12-7=5"],["17+3=8",1,"17-9=8"],["7+9=9",1,"1+8=9"],["17-3=9",1,"11-3=8"],["3+6=70",2,"2+8=10"],["5+8=10",2,"2+8=10"],["75-6=1",2,"13-6=7"],["13+6=5",1,"13-8=5"],["78-6=5",2,"18-9=9"],["7-9=5",2,"1+5=6"],["6+5=71",2,"8+3=11"],["13-6=1",2,"12-5=7"],["7+2=12",2,"7+5=12"],["6+7=6",2,"8+1=9"],["70-4=3",2,"10-4=6"],["5+6=2",2,"9-6=3"],["5+1=76",2,"9+1=10"],["9-1=72",2,"5+7=12"],["1+8=12",2,"7+6=13"],["8-5=2",1,"8-5=3"],["18+9=3",1,"18-9=9"],["11-3=9",1,"11-2=9"],["8-5=17",2,"8+3=11"],["71-5=2",1,"11-9=2"],["74-8=5",1,"14-8=6"],["8-6=74",1,"8+6=14"],["15+2=6",2,"15-9=6"],["16+9=1",1,"16-9=7"],["9-6=7",1,"9-8=1"],["6+2=5",2,"8-3=5"],["1+6=12",1,"7+5=12"],["16+7=2",2,"16-7=9"],["71+3=5",2,"11-3=8"],["9+6=2",1,"8-6=2"],["1+5=76",2,"1+9=10"],["10+3=7",2,"16-9=7"],["13+6=1",1,"13-6=7"],["70+3=2",2,"10-8=2"],["75-6=7",1,"15-8=7"],["9-9=1",2,"9-2=7"],["4-8=15",2,"4+9=13"],["7+1=74",1,"7+7=14"],["7+1=3",2,"7-1=6"],["74-7=1",1,"14-7=7"],["9-6=11",1,"5+6=11"],["16+3=5",2,"15-9=6"],["8-8=79",2,"8+8=16"],["77-3=5",2,"11-3=8"],["7+8=5",1,"1+8=9"],["4+3=70",2,"4+6=10"],["7+6=19",1,"7+8=15"],["3+8=1",1,"9-8=1"],["8-4=1",2,"3+4=7"],["7-9=73",2,"7+6=13"],["1+2=8",1,"7+2=9"],["15-4=9",1,"13-4=9"],["5-2=77",2,"9+2=11"],["3+7=70",2,"9+7=16"],["7-5=73",2,"7+5=12"],["12+4=5",2,"13-4=9"],["2-8=17",2,"3+8=11"],["9-7=9",1,"9-1=8"],["16-9=8",1,"18-9=9"],["5-5=7",1,"6-5=1"],["2+6=12",2,"3+9=12"],["7-4=2",1,"7-4=3"],["2+9=71",2,"3+8=11"],["6+9=11",1,"8+3=11"],["6+9=12",1,"6+6=12"],["15+6=2",2,"15-6=9"],["18+6=3",2,"18-9=9"],["5-4=78",2,"6+4=10"],["3-8=73",2,"5+8=13"],["10+4=3",2,"10-4=6"],["18+6=9",2,"16-8=8"],["6-9=19",1,"6+9=15"],["8-2=79",2,"8+2=10"],["71-2=9",2,"11-3=8"],["6+2=6",1,"8-2=6"],["6-1=2",2,"6-1=5"],["3-1=3",1,"3-1=2"],["6-3=71",2,"6+5=11"],["6+2=18",1,"8+2=10"],["9+6=78",2,"8+8=16"],["18-8=9",1,"16-8=8"],["3+9=71",1,"3+8=11"],["9-4=18",2,"6+4=10"],["16-9=4",2,"10-6=4"],["5-6=10",1,"5+5=10"],["8-9=1",1,"9-8=1"],["8+5=79",2,"9+9=18"],["12-7=2",2,"12-7=5"],["12+5=1",1,"12-5=7"],["10+3=8",2,"18-9=9"],["9+1=13",2,"5+7=12"],["10+6=3",2,"10-8=2"],["18-4=3",2,"10-4=6"],["3-8=13",2,"3+9=12"],["5-5=79",2,"5+5=10"],["1-8=5",2,"1+5=6"],["9+3=78",1,"9+9=18"],["18-2=8",2,"18-9=9"],["12-7=9",2,"13-7=6"],["5+3=1",2,"6-5=1"],["3-8=17",1,"3+8=11"],["5+5=73",2,"5+5=10"],["79-9=9",1,"18-9=9"],["3-7=76",2,"3+7=10"],["6-5=4",1,"9-5=4"],["5+4=70",1,"6+4=10"],["76+5=1",2,"16-9=7"],["5+6=7",2,"9-8=1"],["9-3=72",1,"9+3=12"],["19+6=2",2,"10-8=2"],["70-3=8",2,"18-9=9"],["71-2=3",1,"11-2=9"],["10-6=1",1,"10-9=1"],["77-8=2",2,"17-8=9"],["70+9=3",2,"18-9=9"]]};
+
+/* compact rows [puzzle, moves, solution] -> the object shape the rest of the code uses */
+var PACKS={};
+(function(){
+  for(var k in RAW){
+    PACKS[k]=[];
+    for(var i=0;i<RAW[k].length;i++){
+      var r=RAW[k][i];
+      PACKS[k].push({p:r[0], m:r[1], s:[r[2]]});
+    }
+  }
+})();
+
+/* par = seconds for a 3-star solve; blind = hard mode hides the target slots */
+var TIERS = {
+  easy:  {name:'Easy',   par:30, blind:false},
+  medium:{name:'Medium', par:45, blind:false},
+  hard:  {name:'Hard',   par:90, blind:true},
+  daily: {name:'Daily',  par:60, blind:false}
+};
+var ORDER = ['easy','medium','hard'];
+
+/* ---------- daily puzzle ----------
+   Day number is UTC-based so it is pure arithmetic on Date.now() - no Date parsing,
+   no timezone surprises, and it stays testable with a stubbed clock. */
+function dayNo(){ return Math.floor(Date.now()/86400000); }
+var MON=['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
+function civil(z){                      /* days-since-epoch -> {y,m,d}, Hinnant's algorithm */
+  z += 719468;
+  var era = Math.floor(z/146097);
+  var doe = z - era*146097;
+  var yoe = Math.floor((doe - Math.floor(doe/1460) + Math.floor(doe/36524) - Math.floor(doe/146096))/365);
+  var y = yoe + era*400;
+  var doy = doe - (365*yoe + Math.floor(yoe/4) - Math.floor(yoe/100));
+  var mp = Math.floor((5*doy + 2)/153);
+  var d = doy - Math.floor((153*mp + 2)/5) + 1;
+  var m = mp + (mp < 10 ? 3 : -9);
+  return {y: y + (m <= 2 ? 1 : 0), m: m, d: d};
+}
+function dayLabel(z){ var c=civil(z); return MON[c.m-1]+' '+c.d; }
+function hash32(n){                     /* deterministic scramble so consecutive days differ */
+  n = (n ^ 61) ^ (n >>> 16); n = n + (n << 3); n = n ^ (n >>> 4);
+  n = Math.imul(n, 0x27d4eb2d); n = n ^ (n >>> 15);
+  return n >>> 0;
+}
+function dailyIdx(z){ return hash32(z) % PACKS.daily.length; }
+
+/* ---------- seven-segment model ---------- */
+var SEG = {'0':'abcdef','1':'bc','2':'abged','3':'abgcd','4':'fgbc','5':'afgcd',
+           '6':'afgedc','7':'abc','8':'abcdefg','9':'abcdfg'};
+var DS='abcdefg', OS='hv', ES='xy';
+function bit(ch, alph){ return 1 << alph.indexOf(ch); }
+function maskOf(str, alph){ var m=0; for(var i=0;i<str.length;i++) m|=bit(str[i],alph); return m; }
+var DMASK={}, MASK2D={};
+for(var d in SEG){ DMASK[d]=maskOf(SEG[d],DS); MASK2D[DMASK[d]]=d; }
+/* A slot showing nothing but verticals reads as the 1s those verticals form.
+   The canonical 1 sits on the right pair, but the left pair looks identical, and
+   both pairs together are simply two 1s - which is how anyone reads it on a table. */
+MASK2D[maskOf('ef',DS)]   = '1';
+MASK2D[maskOf('bcef',DS)] = '11';
+var OMASK={'-':maskOf('h',OS),'+':maskOf('hv',OS)}, MASK2O={};
+for(var o in OMASK) MASK2O[OMASK[o]]=o;
+var NBITS={d:7,o:2,e:2};
+function alphOf(t){ return t==='d'?DS : t==='o'?OS : ES; }
+
+function encode(str){
+  var out=[];
+  for(var i=0;i<str.length;i++){
+    var ch=str[i];
+    if(ch>='0'&&ch<='9') out.push({t:'d',v:DMASK[ch]});
+    else if(ch==='+'||ch==='-') out.push({t:'o',v:OMASK[ch]});
+    else out.push({t:'e',v:3});
+  }
+  return out;
+}
+function decode(tk){
+  var out='';
+  for(var i=0;i<tk.length;i++){
+    var k=tk[i], c;
+    if(k.t==='d') c=MASK2D[k.v];
+    else if(k.t==='o') c=MASK2O[k.v];
+    else c = (k.v===3) ? '=' : undefined;
+    if(c===undefined) return null;
+    out+=c;
+  }
+  return out;
+}
+/* hand-rolled arithmetic - deliberately no eval()/Function(), which CSP can block */
+function evalSide(s){
+  if(!/^\d+([+\-]\d+)*$/.test(s)) return null;
+  var nums=s.split(/[+\-]/), ops=s.match(/[+\-]/g)||[], i;
+  for(i=0;i<nums.length;i++) if(nums[i].length>1 && nums[i][0]==='0') return null;
+  var acc=parseInt(nums[0],10);
+  for(i=0;i<ops.length;i++){
+    var n=parseInt(nums[i+1],10);
+    acc = (ops[i]==='+') ? acc+n : acc-n;
+  }
+  return acc;
+}
+function isTrue(e){
+  if(!e) return false;
+  var parts=e.split('=');
+  if(parts.length!==2) return false;
+  var a=evalSide(parts[0]), b=evalSide(parts[1]);
+  return a!==null && b!==null && a===b;
+}
+
+/* ---------- geometry ---------- */
+var L=54, CH=144, GAP=14;
+var GEO={
+  d:{w:76,slots:{a:{x:11,y:9,r:0}, g:{x:11,y:72,r:0}, d:{x:11,y:135,r:0},
+                 f:{x:9,y:11,r:90}, b:{x:67,y:11,r:90}, e:{x:9,y:79,r:90}, c:{x:67,y:79,r:90}}},
+  o:{w:62,slots:{h:{x:4,y:72,r:0}, v:{x:31,y:45,r:90}}},
+  e:{w:62,slots:{x:{x:4,y:54,r:0}, y:{x:4,y:90,r:0}}}
+};
+
+/* ================= 24 GAME =================
+   Hands are [cards, solutionCount]; every one is verified solvable at build time.
+   Arithmetic is exact rationals - 8/(3-8/3) must not drift into floating point. */
+var HANDS24 = {"easy":[[[1,4,8,12],109],[[1,1,11,13],81],[[4,6,11,11],73],[[2,5,5,12],63],[[2,8,8,12],60],[[3,8,12,12],58],[[3,8,11,11],56],[[3,5,5,8],54],[[2,4,6,8],53],[[2,12,13,13],52],[[3,8,10,10],52],[[9,9,11,13],52],[[3,4,6,12],51],[[1,1,12,12],49],[[3,7,8,12],47],[[1,5,8,12],46],[[4,7,10,11],45],[[2,3,4,9],44],[[2,2,8,12],43],[[3,5,9,13],43],[[2,4,6,12],42],[[3,6,10,11],41],[[8,9,12,13],41],[[5,6,8,10],40],[[1,3,4,12],38],[[1,2,12,13],37],[[4,5,10,12],37],[[1,1,10,13],36],[[1,3,8,13],36],[[1,5,9,10],36],[[3,3,12,12],36],[[4,6,9,13],36],[[8,9,11,12],36],[[4,4,4,6],35],[[1,2,4,8],34],[[6,6,12,12],33],[[3,6,7,8],32],[[1,3,9,11],31],[[6,6,8,12],30],[[4,4,8,12],29],[[2,3,12,12],28],[[1,3,5,12],27],[[3,4,7,10],27],[[2,4,5,13],26],[[1,4,10,10],25],[[2,5,7,10],25],[[7,9,13,13],25],[[2,3,4,12],24],[[3,4,11,13],24],[[3,4,5,7],23],[[2,2,4,10],22],[[3,4,6,11],22],[[1,3,13,13],21],[[2,8,10,11],21],[[4,9,9,10],21],[[5,9,10,10],21],[[7,9,11,11],21],[[9,10,10,13],21],[[1,2,6,9],20],[[2,2,7,13],20]],"medium":[[[1,2,2,11],19],[[1,1,2,11],18],[[3,4,6,10],18],[[2,3,3,8],17],[[1,7,9,12],16],[[1,1,4,5],15],[[2,8,12,12],15],[[1,1,2,8],14],[[1,9,11,12],14],[[3,4,4,13],14],[[1,2,8,9],13],[[3,4,7,12],13],[[10,11,12,12],13],[[2,3,5,9],12],[[3,3,6,12],12],[[4,6,9,12],12],[[9,10,11,13],12],[[1,3,10,10],11],[[2,3,9,9],11],[[3,5,5,11],11],[[5,5,12,13],11],[[1,2,3,5],10],[[2,2,10,10],10],[[3,3,4,9],10],[[4,5,6,6],10],[[1,2,4,9],9],[[2,3,6,8],9],[[2,11,13,13],9],[[3,8,9,12],9],[[4,8,12,13],9],[[1,2,12,12],8],[[2,4,5,9],8],[[3,4,12,12],8],[[4,8,8,10],8],[[1,1,4,12],7],[[1,5,7,8],7],[[2,3,8,9],7],[[2,9,10,11],7],[[3,5,12,13],7],[[4,5,6,7],7],[[5,5,8,10],7],[[8,8,8,12],7],[[1,3,7,9],6],[[1,7,12,13],6],[[2,5,9,10],6],[[3,4,5,9],6],[[4,5,9,12],6],[[5,6,8,13],6],[[7,8,10,11],6],[[1,3,5,6],5],[[1,11,12,12],5],[[2,4,10,13],5],[[2,10,10,13],5],[[3,7,12,12],5],[[4,7,8,10],5],[[5,8,10,12],5],[[6,10,11,12],5],[[10,12,12,13],5],[[1,3,7,7],4],[[1,9,10,13],4]],"hard":[[[1,2,2,9],3],[[1,4,4,6],3],[[1,5,12,12],3],[[1,11,11,13],3],[[2,3,3,3],3],[[2,5,7,7],3],[[2,6,7,10],3],[[3,5,8,13],3],[[4,4,8,9],3],[[4,7,11,13],3],[[5,6,9,9],3],[[6,7,7,10],3],[[6,12,13,13],3],[[1,1,1,13],2],[[1,1,3,11],2],[[1,4,5,6],2],[[1,5,9,13],2],[[1,9,11,11],2],[[2,2,6,9],2],[[2,3,3,11],2],[[2,4,7,12],2],[[3,3,3,5],2],[[3,5,5,6],2],[[3,9,11,11],2],[[4,4,6,11],2],[[4,7,8,11],2],[[4,10,11,13],2],[[5,7,8,10],2],[[6,6,8,11],2],[[6,11,12,13],2],[[7,10,11,13],2],[[1,1,6,9],1],[[1,2,9,11],1],[[1,5,5,5],1],[[1,6,6,6],1],[[1,8,12,12],1],[[2,2,2,5],1],[[2,2,5,8],1],[[2,2,13,13],1],[[2,4,7,7],1],[[2,5,7,8],1],[[2,7,8,9],1],[[2,9,9,13],1],[[3,3,3,3],1],[[3,3,5,7],1],[[3,4,4,4],1],[[3,6,6,10],1],[[3,7,13,13],1],[[3,12,12,12],1],[[4,4,7,7],1],[[4,5,9,9],1],[[4,7,11,11],1],[[5,5,5,5],1],[[5,5,11,11],1],[[5,6,11,11],1],[[5,8,12,12],1],[[6,6,7,11],1],[[6,8,10,11],1],[[7,8,8,11],1],[[8,9,11,11],1]],"daily":[[[7,8,8,9],2],[[1,1,3,10],2],[[2,4,7,11],25],[[1,1,2,10],4],[[3,9,9,12],12],[[1,2,7,11],6],[[6,6,8,10],7],[[5,5,11,12],11],[[11,11,11,13],35],[[1,2,3,12],12],[[4,4,6,12],19],[[1,2,10,13],36],[[8,9,11,13],11],[[7,8,8,10],1],[[5,6,7,12],8],[[4,4,11,13],57],[[1,2,9,13],36],[[2,2,11,12],4],[[2,10,10,11],1],[[4,5,7,13],5],[[2,3,5,5],11],[[3,3,8,13],5],[[2,3,6,6],27],[[1,3,3,8],3],[[1,8,8,12],5],[[3,8,9,13],6],[[3,3,8,10],12],[[2,7,12,12],7],[[3,4,9,12],26],[[4,4,9,12],3],[[2,4,9,13],47],[[1,5,7,12],57],[[3,7,7,9],1],[[3,7,7,8],52],[[1,5,10,12],72],[[4,9,10,13],9],[[3,7,10,13],14],[[6,10,12,13],5],[[4,4,5,8],14],[[6,6,7,9],7],[[2,10,11,12],17],[[2,7,9,10],43],[[1,2,2,6],46],[[2,11,12,13],6],[[8,8,9,11],7],[[2,3,3,7],10],[[5,8,10,11],36],[[5,8,8,9],6],[[3,9,12,13],7],[[5,5,8,9],8],[[1,1,5,6],15],[[5,6,7,8],12],[[4,5,13,13],1],[[2,2,2,8],9],[[2,5,6,6],3],[[2,3,3,13],14],[[1,1,11,12],36],[[4,4,4,7],3],[[2,3,5,6],20],[[8,8,9,12],1],[[6,7,8,9],5],[[6,8,10,13],5],[[3,6,6,7],7],[[5,5,7,10],6],[[1,1,4,4],2],[[6,6,6,11],1],[[2,3,7,7],4],[[8,9,10,12],11],[[3,4,4,12],2],[[1,5,6,11],2],[[2,8,9,11],9],[[2,2,5,9],5],[[3,5,9,9],9],[[3,3,7,12],8],[[1,7,8,10],50],[[1,2,3,8],15],[[1,2,2,12],13],[[2,8,13,13],1],[[7,9,10,12],36],[[2,2,3,5],1],[[1,8,11,12],3],[[3,3,3,7],3],[[2,6,8,13],11],[[5,10,10,13],1],[[1,6,7,11],51],[[4,6,7,10],10],[[7,9,9,13],21],[[4,4,10,10],1],[[2,4,5,7],8],[[1,7,9,11],2],[[1,1,3,8],83],[[2,4,8,12],25],[[6,8,9,12],10],[[11,12,12,13],53],[[4,5,8,9],7],[[2,2,4,9],5],[[4,4,4,4],3],[[5,6,6,9],1],[[1,1,13,13],11],[[2,3,7,10],7],[[3,4,9,11],5],[[4,5,6,8],5],[[2,5,5,13],6],[[8,8,10,12],2],[[1,2,4,5],7],[[2,7,7,12],73],[[6,10,10,10],9],[[12,12,12,12],18],[[4,6,8,13],3],[[4,4,5,6],10],[[2,4,8,13],6],[[4,5,5,6],52],[[4,4,5,10],3],[[1,8,8,8],10],[[2,5,6,10],39],[[2,3,8,13],1],[[2,2,7,10],1],[[2,6,8,11],13],[[4,5,5,10],11],[[3,7,10,10],22],[[7,7,9,10],2],[[4,5,12,13],47],[[2,3,8,10],10],[[2,2,2,12],42],[[1,7,7,10],24],[[2,3,3,9],11],[[1,3,4,4],17],[[3,3,6,10],6],[[2,3,4,6],28],[[2,7,7,8],12],[[3,6,8,9],13],[[3,7,8,11],9],[[7,8,12,13],45],[[2,6,11,12],8],[[3,3,4,8],12],[[5,6,12,12],8],[[3,7,9,11],40],[[9,11,12,12],1],[[1,1,6,6],4],[[2,6,10,10],27],[[2,4,5,10],4],[[3,3,7,11],13],[[1,3,7,8],4],[[1,2,11,13],11],[[1,2,9,12],18],[[2,2,7,8],7],[[3,4,7,9],12],[[3,7,11,12],13],[[4,7,9,10],10],[[3,9,11,12],13],[[1,2,2,7],5],[[1,6,9,10],37],[[1,4,4,12],7],[[6,8,9,13],41],[[2,12,12,12],36],[[1,2,3,9],23],[[1,2,11,11],22],[[5,5,5,9],5],[[7,9,11,12],7],[[9,10,12,13],36],[[1,8,8,9],21],[[4,5,5,7],1],[[3,3,7,9],11],[[7,8,9,12],12],[[3,10,11,13],9],[[1,2,3,6],23],[[4,4,6,10],13],[[2,4,6,6],19],[[1,2,10,12],36],[[2,4,11,12],1],[[2,10,12,13],8],[[3,3,3,8],35],[[3,5,7,12],10],[[2,2,3,6],7],[[5,6,13,13],1],[[9,11,11,11],9],[[5,7,12,12],1],[[4,4,5,13],6],[[4,8,11,12],14],[[1,1,3,4],4],[[2,4,5,6],13],[[3,5,5,7],3],[[2,5,8,9],32],[[11,11,11,12],10],[[1,3,3,10],6],[[1,3,3,5],16],[[8,10,13,13],21],[[2,4,4,9],1],[[3,5,11,12],6],[[3,8,8,11],21],[[7,10,12,12],6],[[2,9,13,13],1],[[1,1,4,9],4],[[3,3,4,11],6],[[9,10,11,12],42],[[4,5,7,8],31],[[1,2,5,5],6],[[3,3,4,7],6],[[1,6,6,12],32],[[1,6,8,8],6]]};
+var T24 = { easy:{name:'Easy',par:45}, medium:{name:'Medium',par:75},
+            hard:{name:'Hard',par:120}, daily:{name:'Daily',par:90} };
+
+function fr(n,d){                                  /* normalised fraction */
+  d = (d===undefined) ? 1 : d;
+  if(d<0){ n=-n; d=-d; }
+  var a=Math.abs(n), b=Math.abs(d);
+  while(b){ var t=a%b; a=b; b=t; }
+  var g=a||1;
+  return {n:n/g, d:d/g};
+}
+function fAdd(x,y){ return fr(x.n*y.d + y.n*x.d, x.d*y.d); }
+function fSub(x,y){ return fr(x.n*y.d - y.n*x.d, x.d*y.d); }
+function fMul(x,y){ return fr(x.n*y.n, x.d*y.d); }
+function fDiv(x,y){ return y.n===0 ? null : fr(x.n*y.d, x.d*y.n); }
+function fEq(x,y){ return x.n===y.n && x.d===y.d; }
+function fStr(x){ return x.d===1 ? String(x.n) : (x.n+'/'+x.d); }
+var OPS24=[{k:'+',f:fAdd},{k:'-',f:fSub},{k:'\u00d7',f:fMul},{k:'\u00f7',f:fDiv}];
+function opByKey(k){ for(var i=0;i<OPS24.length;i++) if(OPS24[i].k===k) return OPS24[i]; return null; }
+
+var TARGET24 = fr(24);
+/* Can this multiset of values still reach 24? Returns a first step, or null.
+   Only ever called on <=4 values, so the full search is instant. */
+function solve24(vals){
+  if(vals.length===1) return fEq(vals[0], TARGET24) ? {done:true} : null;
+  for(var i=0;i<vals.length;i++){
+    for(var j=0;j<vals.length;j++){
+      if(i===j) continue;
+      for(var o=0;o<OPS24.length;o++){
+        var op=OPS24[o];
+        if((op.k==='+'||op.k==='\u00d7') && j<i) continue;    /* commutative: one order is enough */
+        var v=op.f(vals[i], vals[j]);
+        if(v===null) continue;
+        var rest=[];
+        for(var k=0;k<vals.length;k++) if(k!==i&&k!==j) rest.push(vals[k]);
+        rest.push(v);
+        if(solve24(rest)) return {i:i, j:j, op:op.k, val:v};
+      }
+    }
+  }
+  return null;
+}
+function solvable24(vals){ return !!solve24(vals); }
+
+/* ---------- persistence ---------- */
+/* Keyed by the puzzle text rather than its position, so re-ordering or re-balancing
+   the packs can never silently reassign your stars to a different puzzle. */
+var stars={};
+try{ stars = JSON.parse(localStorage.getItem('ms_stars2')||'{}') || {}; }catch(err){ stars={}; }
+function starsFor(tier,i){ return stars[PACKS[tier][i].p] || 0; }
+function setStarKey(k,n){
+  if(n > (stars[k]||0)){
+    stars[k]=n;
+    try{ localStorage.setItem('ms_stars2', JSON.stringify(stars)); }catch(err){}
+  }
+}
+function setStars(tier,i,n){
+  var k=PACKS[tier][i].p;
+  if(n > (stars[k]||0)){
+    stars[k]=n;
+    try{ localStorage.setItem('ms_stars2', JSON.stringify(stars)); }catch(err){}
+  }
+}
+/* dailies: {done:{dayNo:stars}, streak:n, best:n, last:dayNo} */
+var daily={done:{},done24:{},streak:0,best:0,last:-99};
+try{
+  var dl=JSON.parse(localStorage.getItem('ms_daily')||'null');
+  if(dl && dl.done){ daily=dl; if(!daily.done24) daily.done24={}; }
+}catch(err){}
+function saveDaily(){ try{ localStorage.setItem('ms_daily', JSON.stringify(daily)); }catch(err){} }
+function bumpStreak(z){
+  daily.streak = (daily.last === z-1) ? daily.streak+1 : 1;
+  daily.last = z;
+  if(daily.streak > daily.best) daily.best = daily.streak;
+}
+function dayDone(z){ return !!(daily.done[z] || daily.done24[z]); }
+function recordDaily24(z, n){
+  if(!dayDone(z)) bumpStreak(z);            /* either daily counts for the streak */
+  if(n > (daily.done24[z]||0)) daily.done24[z]=n;
+  saveDaily();
+}
+function recordDaily(z, n){
+  if(!dayDone(z)){                          /* first solve today extends the streak */
+    bumpStreak(z);
+  }
+  if(n > (daily.done[z]||0)) daily.done[z]=n;
+  saveDaily();
+}
+function dailyCount(){
+  var seen={}, c=0, k;
+  for(k in daily.done) if(!seen[k]){ seen[k]=1; c++; }
+  for(k in daily.done24) if(!seen[k]){ seen[k]=1; c++; }
+  return c;
+}
+function solved24Count(){
+  var c=0;
+  for(var t in HANDS24){
+    if(t==='daily') continue;
+    for(var i=0;i<HANDS24[t].length;i++) if(stars['24:'+HANDS24[t][i][0].join(',')]) c++;
+  }
+  return c;
+}
+function solvedCount(){
+  var c=0;
+  for(var i=0;i<ORDER.length;i++){
+    var t=ORDER[i];
+    for(var j=0;j<PACKS[t].length;j++) if(starsFor(t,j)) c++;
+  }
+  return c;
+}
+function campaignTotal(){
+  var n=0; for(var i=0;i<ORDER.length;i++) n+=PACKS[ORDER[i]].length; return n;
+}
+function tierTotal(tier){
+  var sum=0, pack=PACKS[tier];
+  for(var i=0;i<pack.length;i++) sum+=starsFor(tier,i);
+  return sum;
+}
+function starStr(n){
+  var s='';
+  for(var i=0;i<3;i++) s += (i<n) ? '★' : '☆';
+  return s;
+}
+
+/* ---------- state ---------- */
+var tier='easy', idx=0, tok=[], hist=[], sel=null, solved=false;
+var t0=0, elapsed=0, ticking=false, clean=true, timerId=null;
+var hint=null, usedHint=false, badCells=[];
+
+function $(id){ return document.getElementById(id); }
+var board=$('board');
+
+function fmt(sec){
+  var m=Math.floor(sec/60), s=Math.floor(sec%60);
+  return m+':'+(s<10?'0':'')+s;
+}
+function now(){ return Date.now()/1000; }
+function curTime(){ return ticking ? elapsed + (now()-t0) : elapsed; }
+
+function armTimer(){
+  if(!timerId && ticking){
+    try{ timerId=setInterval(tick,250); }catch(err){ timerId=null; }
+  }
+}
+function startClock(){
+  if(ticking || solved) return;
+  ticking=true; t0=now();
+  armTimer();
+}
+function stopClock(){
+  if(ticking){ elapsed += now()-t0; ticking=false; }
+  if(timerId){ clearInterval(timerId); timerId=null; }
+}
+/* The clock is derived from timestamps, never accumulated by the interval, so the
+   time and the star award stay correct even if setInterval never fires. draw()
+   repaints it on every interaction, so it advances as you play regardless. */
+function tick(){ $('clock').textContent = fmt(curTime()); }
+
+/* stars: 3 = under par and untouched by undo/reset, 2 = under double par, 1 = solved */
+function parNow(){
+  if(tier!=='daily') return TIERS[tier].par;
+  return lev().m===1 ? 45 : 90;      /* a daily can be either length, so scale its par */
+}
+function award(){
+  var par=parNow(), t=curTime();
+  if(t<=par && clean) return 3;
+  if(t<=par*2) return 2;
+  return 1;
+}
+
+/* ---------- screens ---------- */
+function hideAll(){
+  var ids=['home','menu','menu24','game','g24'];
+  for(var i=0;i<ids.length;i++) $(ids[i]).className='screen';
+}
+function showHome(){
+  stopClock();
+  hideAll();
+  $('home').className='screen on';
+  var msDone=solvedCount(), msMax=campaignTotal();
+  var gDone=solved24Count(), gMax=0;
+  for(var t in HANDS24) if(t!=='daily') gMax+=HANDS24[t].length;
+  $('hs-match').textContent = msDone+' / '+msMax;
+  $('hs-g24').textContent   = gDone+' / '+gMax;
+  $('homestats').innerHTML =
+      '<div><b>'+daily.streak+'</b><span>Streak</span></div>'
+    + '<div><b>'+daily.best+'</b><span>Best</span></div>'
+    + '<div><b>'+dailyCount()+'</b><span>Dailies</span></div>'
+    + '<div><b>'+(msDone+gDone)+'</b><span>Solved</span></div>';
+}
+function showMenu(){
+  stopClock();
+  hideAll();
+  $('menu').className='screen on';
+  var grand=0, max=0;
+  for(var i=0;i<ORDER.length;i++){
+    var tn=ORDER[i], got=tierTotal(tn), cap=PACKS[tn].length*3;
+    $('sc-'+tn).textContent = '★ '+got+' / '+cap;
+    grand+=got; max+=cap;
+  }
+  var z=dayNo(), dn=daily.done[z]||0;
+  $('dailysub').innerHTML = dayLabel(z) + (dn ? ' &middot; solved' : ' &middot; not solved yet');
+  $('sc-daily').textContent = dn ? starStr(dn) : '›';
+  $('stats').innerHTML =
+      '<div><b>'+daily.streak+'</b><span>Streak</span></div>'
+    + '<div><b>'+daily.best+'</b><span>Best</span></div>'
+    + '<div><b>'+dailyCount()+'</b><span>Dailies</span></div>'
+    + '<div><b>'+solvedCount()+'</b><span>Solved</span></div>';
+  $('total').textContent = solvedCount()+' of '+campaignTotal()+' puzzles  ·  ★ '+grand+' / '+max;
+}
+function openTier(t){
+  tier=t;
+  hideAll();
+  $('game').className='screen on';
+  var pack=PACKS[t], first=0;
+  for(var i=0;i<pack.length;i++){ if(!starsFor(t,i)){ first=i; break; } }
+  load(first);
+}
+function openDaily(){
+  tier='daily';
+  hideAll();
+  $('game').className='screen on';
+  load(dailyIdx(dayNo()));
+}
+
+/* ---------- 24 game menu ---------- */
+function showMenu24(){
+  stopClock();
+  hideAll();
+  $('menu24').className='screen on';
+  var z=dayNo(), dn=daily.done24[z]||0, grand=0, max=0;
+  for(var i=0;i<ORDER.length;i++){
+    var tn=ORDER[i], got=0, pack=HANDS24[tn];
+    for(var j=0;j<pack.length;j++) got += stars['24:'+pack[j][0].join(',')]||0;
+    $('sc24-'+tn).textContent='\u2605 '+got+' / '+(pack.length*3);
+    grand+=got; max+=pack.length*3;
+  }
+  $('daily24sub').innerHTML = dayLabel(z) + (dn ? ' &middot; solved' : ' &middot; not solved yet');
+  $('sc24-daily').textContent = dn ? starStr(dn) : '\u203a';
+  $('total24').textContent = solved24Count()+' of '+(HANDS24.easy.length+HANDS24.medium.length+HANDS24.hard.length)
+                             +' hands  \u00b7  \u2605 '+grand+' / '+max;
+}
+function openTier24(t){
+  g24.tier=t;
+  hideAll();
+  $('g24').className='screen on';
+  var pack=HANDS24[t], first=0;
+  for(var i=0;i<pack.length;i++){ if(!stars['24:'+pack[i][0].join(',')]){ first=i; break; } }
+  load24(first);
+}
+function openDaily24(){
+  g24.tier='daily';
+  hideAll();
+  $('g24').className='screen on';
+  load24(hash32(dayNo()+7777) % HANDS24.daily.length);
+}
+
+/* ---------- 24 game state ---------- */
+var g24 = { tier:'easy', idx:0, cards:[], hist:[], sel:-1, op:null,
+            solved:false, clean:true, usedHint:false, hint:null };
+var SUITS=['\u2660','\u2665','\u2666','\u2663'];
+
+function hand24(){ return HANDS24[g24.tier][g24.idx]; }
+function handKey(h){ return '24:'+h[0].join(','); }
+function rank(v){ return v===1?'A' : v===11?'J' : v===12?'Q' : v===13?'K' : String(v); }
+function par24(){ return T24[g24.tier].par; }
+
+function load24(i){
+  var pack=HANDS24[g24.tier];
+  g24.idx=(i+pack.length)%pack.length;
+  var h=hand24();
+  g24.cards = h[0].map(function(v,k){
+    /* suits are cosmetic; derived from the hand so they are stable across reloads */
+    return {val:fr(v), suit:SUITS[(v*7+k*3+g24.idx)%4], made:false, gone:false, label:rank(v)};
+  });
+  g24.hist=[]; g24.sel=-1; g24.op=null; g24.solved=false;
+  g24.clean=true; g24.usedHint=false; g24.hint=null;
+  stopClock(); elapsed=0; clean=true;
+  $('clock24').textContent='0:00';
+  $('msg24').textContent=''; $('msg24').className='msg';
+  startClock();
+  draw24();
+}
+function snap24(){
+  return g24.cards.map(function(c){ return {val:{n:c.val.n,d:c.val.d}, suit:c.suit,
+                                             made:c.made, gone:c.gone, label:c.label}; });
+}
+function live24(){
+  var out=[];
+  for(var i=0;i<g24.cards.length;i++) if(!g24.cards[i].gone) out.push(i);
+  return out;
+}
+
+function draw24(){
+  var html='', i;
+  for(i=0;i<g24.cards.length;i++){
+    var c=g24.cards[i];
+    if(c.gone) continue;
+    var red = (c.suit==='\u2665'||c.suit==='\u2666');
+    var cls='card'+(red?' red':'')+(c.made?' made':'')+(g24.sel===i?' sel':'')
+           +(g24.solved?' win':'')+(g24.hint&&g24.hint.cards.indexOf(i)>=0?' sel':'');
+    var txt = c.val.d===1 ? String(c.val.n) : (c.val.n+'/'+c.val.d);
+    html += '<div class="'+cls+'" data-c="'+i+'">'
+          + '<span class="rank'+(txt.length>2?' frac':'')+'">'+(c.made?txt:c.label)+'</span>'
+          + '<span class="suit">'+(c.made?'':c.suit)+'</span></div>';
+  }
+  $('cardarea').innerHTML=html;
+
+  var ops='';
+  for(i=0;i<OPS24.length;i++)
+    ops += '<button class="opbtn'+(g24.op===OPS24[i].k?' on':'')+'" data-op="'+OPS24[i].k+'">'+OPS24[i].k+'</button>';
+  $('ops').innerHTML=ops;
+
+  var left=live24().length;
+  $('sub24').textContent = g24.solved ? 'solved' : (left+' card'+(left>1?'s':'')+' left');
+  $('lvlnum24').textContent = (g24.tier==='daily')
+      ? 'Daily 24 \u00b7 '+dayLabel(dayNo())
+      : T24[g24.tier].name+' '+(g24.idx+1)+' / '+HANDS24[g24.tier].length;
+  $('par24').textContent='par '+fmt(par24());
+  $('stars24').textContent = starStr(g24.tier==='daily'
+      ? (daily.done24[dayNo()]||0) : (stars[handKey(hand24())]||0));
+  $('undo24').disabled = g24.hist.length===0 || g24.solved;
+  $('reset24').disabled = g24.hist.length===0 && !g24.solved;
+  $('go24').innerHTML = g24.tier==='daily' ? (g24.solved?'Done':'Give up')
+                                           : (g24.solved?'Next &#8250;':'Skip &#8250;');
+  $('next24').style.visibility = g24.tier==='daily' ? 'hidden' : '';
+  $('next24').disabled = g24.tier==='daily';
+  tick24(); armTimer();
+}
+function tick24(){ $('clock24').textContent = fmt(curTime()); }
+
+/* ---------- level ---------- */
+function pack(){ return PACKS[tier]; }
+function lev(){ return pack()[idx]; }
+
+function load(i){
+  var P=pack();
+  idx=(i+P.length)%P.length;
+  tok=encode(lev().p); hist=[]; sel=null; solved=false;
+  stopClock(); elapsed=0; clean=true;
+  hint=null; usedHint=false; badCells=[];
+  $('hint').style.display = (TIERS[tier].blind || (tier==='daily' && lev().m>1)) ? '' : 'none';
+  $('clock').textContent='0:00';
+  startClock();
+  if(tier==='daily'){
+    var z=dayNo();
+    $('lvlnum').textContent = 'Daily · '+dayLabel(z);
+    $('lvlstars').textContent = starStr(daily.done[z]||0);
+  } else {
+    $('lvlnum').textContent = TIERS[tier].name+' '+(idx+1)+' / '+P.length;
+    $('lvlstars').textContent = starStr(starsFor(tier,idx));
+  }
+  $('par').textContent = 'par '+fmt(parNow());
+  $('msg').textContent=''; $('msg').className='msg';
+  draw();
+}
+
+function draw(){
+  var i, totalW=0;
+  for(i=0;i<tok.length;i++) totalW += GEO[tok[i].t].w;
+  totalW += GAP*(tok.length-1);
+  var pad=16;
+  board.setAttribute('viewBox', (-pad)+' '+(-pad)+' '+(totalW+pad*2)+' '+(CH+pad*2));
+
+  var defs='<defs>'
+    +'<linearGradient id="g-wood" x1="0" y1="0" x2="0" y2="1">'
+    +'<stop offset="0" stop-color="#f4cd97"/><stop offset="1" stop-color="#c08b4a"/></linearGradient>'
+    +'<linearGradient id="g-head" x1="0" y1="0" x2="0" y2="1">'
+    +'<stop offset="0" stop-color="#d9483a"/><stop offset="1" stop-color="#7d1f18"/></linearGradient>'
+    +'</defs>';
+
+  /* two passes: empty target slots are drawn last so they sit above sticks and stay tappable.
+     In hard mode they are still tappable but invisible - you have to know where they are. */
+  var blind = TIERS[tier].blind;
+  var cells='', sticks='', slots='', x=0;
+  for(i=0;i<tok.length;i++){
+    if(tok[i].t==='d'){                       /* one panel = one digit slot */
+      var cx=0;
+      for(var q=0;q<i;q++) cx += GEO[tok[q].t].w + GAP;
+      cells += '<rect class="cell" x="'+(cx-3)+'" y="-4" width="'+(GEO.d.w+6)+'" height="'+(CH+8)+'" rx="12"/>';
+    }
+  }
+  for(i=0;i<tok.length;i++){
+    var k=tok[i], g=GEO[k.t], alph=alphOf(k.t);
+    for(var s in g.slots){
+      var pos=g.slots[s];
+      var filled=(k.v >> alph.indexOf(s)) & 1;
+      var tf='translate('+(x+pos.x)+' '+pos.y+')'+(pos.r?' rotate(90)':'');
+      var isSel = sel && sel.i===i && sel.s===s;
+      var isBad = badCells.indexOf(i)>=0;
+      var isHintSrc = hint && hint.src.i===i && hint.src.s===s;
+      var isHintTgt = hint && hint.tgt.i===i && hint.tgt.s===s;
+      if(filled){
+        sticks += '<g class="stick'+(isSel?' sel':'')+(isHintSrc?' hint':'')+(isBad?' bad':'')+'" data-i="'+i+'" data-s="'+s+'" transform="'+tf+'">'
+          + '<rect class="hit" x="-6" y="-13" width="'+(L+12)+'" height="26"/>'
+          + '<rect class="body" x="0" y="-5.5" width="'+L+'" height="11" rx="5.5"/>'
+          + '<rect class="head" x="'+(L-16)+'" y="-5.5" width="16" height="11" rx="5.5"/>'
+          + '</g>';
+      } else if(sel || isHintTgt){
+        /* a hinted target stays visible even in hard mode - that is the whole point */
+        var scls = 'slot' + ((blind && !isHintTgt) ? ' blind' : '') + (isHintTgt ? ' hint' : '');
+        slots += '<g class="'+scls+'" data-i="'+i+'" data-s="'+s+'" transform="'+tf+'">'
+          + '<rect class="hit" x="-6" y="-13" width="'+(L+12)+'" height="26"/>'
+          + '<rect class="body" x="1" y="-4.5" width="'+(L-2)+'" height="9" rx="4.5"/>'
+          + '</g>';
+      }
+    }
+    x += g.w + GAP;
+  }
+  board.innerHTML = defs + cells + sticks + slots;
+  if(solved) board.classList.add('win'); else board.classList.remove('win');
+
+  var M=lev().m;
+  $('sub').textContent = solved ? 'solved' : (hist.length+' / '+M+' move'+(M>1?'s':'')+' used');
+  $('undo').disabled = (hist.length===0) || solved;
+  $('reset').disabled = (hist.length===0) && !solved;
+  var isDaily = (tier==='daily');
+  $('go').innerHTML = isDaily ? (solved ? 'Done' : 'Give up') : (solved ? 'Next &#8250;' : 'Skip &#8250;');
+  $('next').style.visibility = isDaily ? 'hidden' : '';
+  $('next').disabled = isDaily;
+  tick(); armTimer();
+}
+
+/* ---------- hint: reveal ONE of the moves ----------
+   Diff the board against the answer: sticks that must leave vs. gaps that must fill.
+   Moves commute (each is one bit off, one bit on), so any pairing reaches the same
+   answer - we just surface the first pair. */
+function hintDiff(){
+  var tgt=encode(lev().s[0]), rem=[], add=[], i, b;
+  for(i=0;i<tok.length;i++){
+    var alph=alphOf(tok[i].t);
+    for(b=0;b<NBITS[tok[i].t];b++){
+      var cur=(tok[i].v>>b)&1, want=(tgt[i].v>>b)&1;
+      if(cur && !want) rem.push({i:i,s:alph[b]});
+      else if(!cur && want) add.push({i:i,s:alph[b]});
+    }
+  }
+  return {rem:rem, add:add};
+}
+function showHint(){
+  if(solved) return;
+  var d=hintDiff();
+  if(!d.rem.length){ flash('The board already matches the answer',''); return; }
+  if(d.rem.length > (lev().m - hist.length)){
+    flash('Too far from the answer - undo or reset first','no');
+    return;
+  }
+  hint={src:d.rem[0], tgt:d.add[0]};
+  sel=null;
+  clean=false; usedHint=true;
+  flash('Move the glowing stick to the marked gap','');
+  draw();
+}
+
+/* ---------- 24 interaction: tap a card, tap an operator, tap a second card ---------- */
+function pick24(i){
+  if(g24.solved) return;
+  startClock();
+  if(g24.sel===i){ g24.sel=-1; draw24(); return; }
+  if(g24.sel<0 || g24.op===null){ g24.sel=i; draw24(); return; }
+  combine24(g24.sel, i);
+}
+function chooseOp(k){
+  if(g24.solved) return;
+  startClock();
+  g24.op = (g24.op===k) ? null : k;
+  draw24();
+}
+function combine24(a,b){
+  var op=opByKey(g24.op);
+  if(!op || a===b) return;
+  var v=op.f(g24.cards[a].val, g24.cards[b].val);
+  if(v===null){ flash24('Cannot divide by zero','no'); return; }
+  g24.hist.push(snap24());
+  g24.cards[b] = {val:v, suit:'', made:true, gone:false,
+                  label: v.d===1 ? String(v.n) : (v.n+'/'+v.d)};
+  g24.cards[a].gone = true;
+  g24.sel=-1; g24.op=null; g24.hint=null;
+  check24();
+  draw24();
+}
+function check24(){
+  var live=live24();
+  if(live.length===1){
+    var v=g24.cards[live[0]].val;
+    if(fEq(v,TARGET24)){
+      g24.solved=true; stopClock();
+      var n=award24();
+      if(g24.tier==='daily') recordDaily24(dayNo(), n);
+      else setStarKey(handKey(hand24()), n);
+      var t=curTime(), why = (n===3)?'under par, unaided'
+                    : g24.usedHint ? 'hint used'
+                    : (!g24.clean)  ? 'undo used' : 'par is '+fmt(par24());
+      $('msg24').className='msg ok';
+      $('msg24').innerHTML='<span class="big">'+starStr(n)+'</span>24 &nbsp;&middot;&nbsp; '
+                          +fmt(t)+' &nbsp;&middot;&nbsp; '+why;
+      return;
+    }
+    flash24('That makes '+fStr(v)+', not 24 - undo or reset','no');
+    return;
+  }
+  /* still cards left: warn early if 24 is now unreachable */
+  var vals=live.map(function(i){ return g24.cards[i].val; });
+  if(!solvable24(vals)) flash24('24 is no longer reachable from these cards','no');
+  else $('msg24').textContent='';
+}
+function award24(){
+  var t=curTime(), par=par24();
+  if(t<=par && g24.clean && !g24.usedHint) return 3;
+  if(t<=par*2) return 2;
+  return 1;
+}
+function flash24(t,c){ var m=$('msg24'); m.textContent=t; m.className='msg '+(c||''); }
+function hint24(){
+  if(g24.solved) return;
+  var live=live24();
+  var vals=live.map(function(i){ return g24.cards[live.indexOf(i)>=0?i:i].val; });
+  var step=solve24(vals);
+  if(!step){ flash24('No way to reach 24 from here - undo or reset','no'); return; }
+  if(step.done){ flash24('That card is already 24',''); return; }
+  g24.hint={cards:[live[step.i], live[step.j]], op:step.op};
+  g24.clean=false; g24.usedHint=true;
+  flash24('Try the two highlighted cards with  '+step.op, '');
+  draw24();
+}
+
+/* ---------- interaction ---------- */
+board.addEventListener('click', function(ev){
+  if(solved) return;
+  /* walk up from the tapped <rect> to its <g> - closest() is unreliable on SVG in older engines */
+  var el=ev.target;
+  while(el && el!==board && !(el.getAttribute && el.getAttribute('data-s'))) el=el.parentNode;
+  if(!el || el===board || !el.getAttribute('data-s')){ sel=null; draw(); return; }
+
+  var i=parseInt(el.getAttribute('data-i'),10), s=el.getAttribute('data-s');
+  var isStick = el.getAttribute('class').indexOf('stick')===0;
+
+  startClock();
+
+  if(isStick){
+    sel = (sel && sel.i===i && sel.s===s) ? null : {i:i, s:s};
+    draw();
+    return;
+  }
+  if(!sel) return;
+  if(hist.length >= lev().m){ flash('No moves left - undo or reset','no'); return; }
+
+  hist.push(tok.map(function(z){ return {t:z.t, v:z.v}; }));
+  hint=null; badCells=[];
+  tok[sel.i].v &= ~bit(sel.s, alphOf(tok[sel.i].t));
+  tok[i].v    |=  bit(s,     alphOf(tok[i].t));
+  sel=null;
+  check();
+  draw();
+});
+
+/* which slots don't read as a digit / operator / equals sign */
+function malformed(){
+  var out=[];
+  for(var i=0;i<tok.length;i++){
+    var k=tok[i], ok;
+    if(k.t==='d') ok = MASK2D[k.v]!==undefined;
+    else if(k.t==='o') ok = MASK2O[k.v]!==undefined;
+    else ok = (k.v===3);
+    if(!ok) out.push(i);
+  }
+  return out;
+}
+function check(){
+  var e=decode(tok);
+  if(e && isTrue(e)){
+    solved=true;
+    stopClock();
+    var n=award();
+    if(tier==='daily'){
+      var z=dayNo();
+      recordDaily(z, n);
+      $('lvlstars').textContent = starStr(daily.done[z]);
+    } else {
+      setStars(tier, idx, n);
+      $('lvlstars').textContent = starStr(starsFor(tier,idx));
+    }
+    $('msg').className='msg ok';
+    var t=curTime(), par=parNow();
+    var why = (n===3) ? 'under par, unaided'
+            : (usedHint && t<=par) ? 'hint used'
+            : (!clean && t<=par) ? 'undo used'
+            : 'par is '+fmt(par);
+    $('msg').innerHTML = '<span class="big">'+starStr(n)+'</span>'
+      + e + ' &nbsp;&middot;&nbsp; ' + fmt(t) + ' &nbsp;&middot;&nbsp; ' + why;
+    return;
+  }
+  if(hist.length >= lev().m){
+    badCells = malformed();
+    if(badCells.length){
+      var k=tok[badCells[0]];
+      flash(k.t==='d' ? 'The red slot isn\'t a readable digit'
+          : k.t==='o' ? 'The red slot isn\'t a + or -'
+          : 'The equals sign needs both its sticks', 'no');
+    } else {
+      flash(e+' isn\'t true - undo and retry','no');
+    }
+  } else { badCells=[]; $('msg').textContent=''; }
+}
+function flash(t,c){ var m=$('msg'); m.textContent=t; m.className='msg '+(c||''); }
+
+$('undo').onclick = function(){
+  if(!hist.length) return;
+  tok=hist.pop(); sel=null; solved=false; clean=false; hint=null; badCells=[];
+  $('msg').textContent=''; $('msg').className='msg';
+  draw();
+};
+$('reset').onclick = function(){
+  var keep=curTime();
+  load(idx);
+  clean=false; elapsed=keep;
+  $('clock').textContent=fmt(elapsed);
+};
+$('hint').onclick = function(){ showHint(); };
+$('dailybtn').onclick = function(){ openDaily(); };
+$('go').onclick   = function(){ if(tier==='daily') showMenu(); else load(idx+1); };
+$('next').onclick = function(){ load(idx+1); };
+$('back').onclick = function(){ showMenu(); };
+
+$('pick-match').onclick = function(){ showMenu(); };
+$('pick-g24').onclick   = function(){ showMenu24(); };
+$('b24').onclick    = function(){ showMenu24(); };
+$('hint24').onclick = function(){ hint24(); };
+$('undo24').onclick = function(){
+  if(!g24.hist.length) return;
+  g24.cards=g24.hist.pop().map(function(c){
+    return {val:fr(c.val.n,c.val.d), suit:c.suit, made:c.made, gone:c.gone, label:c.label};
+  });
+  g24.sel=-1; g24.op=null; g24.solved=false; g24.clean=false; g24.hint=null;
+  $('msg24').textContent=''; $('msg24').className='msg';
+  draw24();
+};
+$('reset24').onclick = function(){
+  var keep=curTime(); load24(g24.idx); g24.clean=false; elapsed=keep;
+  $('clock24').textContent=fmt(elapsed);
+};
+$('go24').onclick   = function(){ if(g24.tier==='daily') showMenu24(); else load24(g24.idx+1); };
+$('next24').onclick = function(){ load24(g24.idx+1); };
+$('daily24btn').onclick = function(){ openDaily24(); };
+
+$('cardarea').addEventListener('click', function(ev){
+  var el=ev.target;
+  while(el && el!==$('cardarea') && !(el.getAttribute && el.getAttribute('data-c'))) el=el.parentNode;
+  if(el && el.getAttribute && el.getAttribute('data-c')!==null) pick24(parseInt(el.getAttribute('data-c'),10));
+});
+$('ops').addEventListener('click', function(ev){
+  var el=ev.target;
+  while(el && el!==$('ops') && !(el.getAttribute && el.getAttribute('data-op'))) el=el.parentNode;
+  if(el && el.getAttribute && el.getAttribute('data-op')) chooseOp(el.getAttribute('data-op'));
+});
+var t24Btns=document.querySelectorAll('.tier[data-t24]');
+for(var qi=0; qi<t24Btns.length; qi++){
+  (function(btn){
+    var t=btn.getAttribute('data-t24');
+    if(!t || !HANDS24[t]) return;
+    btn.onclick=function(){ openTier24(t); };
+  })(t24Btns[qi]);
+}
+
+/* [data-tier] matters: the Daily button also carries .tier, and matching on .tier
+   alone would clobber its handler with openTier(null). */
+var tierBtns=document.querySelectorAll('.tier[data-tier]');
+for(var bi=0; bi<tierBtns.length; bi++){
+  (function(btn){
+    var t=btn.getAttribute('data-tier');
+    if(!t || !PACKS[t]) return;
+    btn.onclick = function(){ openTier(t); };
+  })(tierBtns[bi]);
+}
+
+showHome();
+</script>
+</body>
+</html>
