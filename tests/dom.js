@@ -5,15 +5,19 @@
 const fs=require('fs');
 function build(htmlPath){
   const html=fs.readFileSync(htmlPath,'utf8');
-  const els={}; let listener=null;
+  const els={};
   const mkcl=()=>{const c=new Set();return{c,add:x=>c.add(x),remove:x=>c.delete(x),contains:x=>c.has(x)};};
   function mk(id, attrs){
     const a=Object.assign({},attrs||{});
+    const listeners={};   // per-element, per-type - see the CLAUDE.md history on why a
+                           // single shared listener silently drops the other elements'
     const e={id,_t:'',_h:'',className:a['class']||'',disabled:false,onclick:null,style:{},
       classList:mkcl(), attrs:a,
       getAttribute:k=>(k in a? a[k] : null),
       setAttribute:(k,v)=>{a[k]=v;},
-      addEventListener:(t,f)=>{listener=f;}};
+      addEventListener:(t,f)=>{ (listeners[t]=listeners[t]||[]).push(f); },
+      removeEventListener:(t,f)=>{ const l=listeners[t]; if(l){ const i=l.indexOf(f); if(i>=0) l.splice(i,1); } },
+      dispatch:(t,ev)=>{ (listeners[t]||[]).slice().forEach(f=>f(ev||{target:e})); }};
     Object.defineProperty(e,'textContent',{get:()=>e._t,set:v=>{e._t=v;e._h=v;}});
     Object.defineProperty(e,'innerHTML',{get:()=>e._h,set:v=>{e._h=v;e._t=String(v).replace(/<[^>]+>/g,' ');}});
     return els[id]=e;
@@ -63,6 +67,6 @@ function build(htmlPath){
     removeEventListener:(t,f)=>{ const i=popListeners.indexOf(f); if(i>=0) popListeners.splice(i,1); }
   };
 
-  return {document, window, els, fire:(...a)=>listener(...a), get listener(){return listener;}};
+  return {document, window, els};
 }
 module.exports={build};

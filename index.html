@@ -123,6 +123,12 @@
   .msg.ok{color:var(--ok)}
   .msg.no{color:#e08b7a}
   .msg .big{display:block;color:var(--sel);font-size:26px;letter-spacing:5px;margin-bottom:2px}
+  .msg .sharebtn{
+    display:inline-block;margin-left:8px;padding:3px 12px;border-radius:999px;
+    border:1px solid rgba(255,209,102,.5);background:rgba(255,209,102,.12);
+    color:var(--sel);font:inherit;font-size:13px;font-weight:700;cursor:pointer;vertical-align:middle
+  }
+  .msg .sharebtn:active{background:rgba(255,209,102,.28)}
 
   /* short phones (SE, and anything with the keyboard-less landscape squeeze) */
   @media (max-height:640px){
@@ -896,9 +902,14 @@ function check24(){
       var t=curTime(), why = (n===3)?'under par, unaided'
                     : g24.usedHint ? 'hint used'
                     : (!g24.clean)  ? 'undo used' : 'par is '+fmt(par24());
+      var shareBtn='';
+      if(g24.tier==='daily'){
+        lastShare.g24 = shareText('24 Game', n, t, dayNo());
+        shareBtn = ' <button class="sharebtn" data-share="g24">Share</button>';
+      }
       $('msg24').className='msg ok';
       $('msg24').innerHTML='<span class="big">'+starStr(n)+'</span>24 &nbsp;&middot;&nbsp; '
-                          +fmt(t)+' &nbsp;&middot;&nbsp; '+why;
+                          +fmt(t)+' &nbsp;&middot;&nbsp; '+why+shareBtn;
       return;
     }
     flash24('That makes '+fStr(v)+', not 24 - undo or reset','no');
@@ -927,6 +938,48 @@ function hint24(){
   g24.clean=false; g24.usedHint=true;
   flash24('Try the two highlighted cards with  '+step.op, '');
   draw24();
+}
+
+/* ---------- share ----------
+   Wordle-style: spoiler-free (no puzzle/answer, just stars/time/streak) so it
+   can't give away the day's puzzle to someone who hasn't played yet. Scoped to
+   dailies only - that's the one puzzle everyone's playing the same day, which
+   is what makes sharing a result meaningful instead of just noise. */
+var lastShare = {match:'', g24:''};
+function shareText(game, n, t, z){
+  var lines = [
+    'Math Fun — ' + game + ' Daily · ' + dayLabel(z),
+    starStr(n) + '   ' + fmt(t),
+    '🔥 ' + daily.streak + '-day streak'
+  ];
+  try{ if(location.href) lines.push(location.href); }catch(err){}
+  return lines.join('\n');
+}
+function doShare(text, onDone){
+  if(typeof navigator !== 'undefined' && navigator.share){
+    navigator.share({text:text}).catch(function(){});
+    if(onDone) onDone('shared');
+    return;
+  }
+  if(typeof navigator !== 'undefined' && navigator.clipboard && navigator.clipboard.writeText){
+    navigator.clipboard.writeText(text).catch(function(){});
+    if(onDone) onDone('copied');
+    return;
+  }
+  if(onDone) onDone('unavailable');
+}
+function wireShare(msgEl, key){
+  msgEl.addEventListener('click', function(ev){
+    var el=ev.target;
+    while(el && el!==msgEl && !(el.getAttribute && el.getAttribute('data-share'))) el=el.parentNode;
+    if(!el || !el.getAttribute || !el.getAttribute('data-share')) return;
+    var original=el.textContent;
+    doShare(lastShare[key], function(result){
+      if(result==='unavailable' || typeof window==='undefined') return;
+      el.textContent = (result==='copied') ? 'Copied!' : 'Shared!';
+      setTimeout(function(){ el.textContent=original; }, 1500);
+    });
+  });
 }
 
 /* ---------- interaction ---------- */
@@ -991,8 +1044,13 @@ function check(){
             : (usedHint && t<=par) ? 'hint used'
             : (!clean && t<=par) ? 'undo used'
             : 'par is '+fmt(par);
+    var shareBtn='';
+    if(tier==='daily'){
+      lastShare.match = shareText('Matchstick', n, t, dayNo());
+      shareBtn = ' <button class="sharebtn" data-share="match">Share</button>';
+    }
     $('msg').innerHTML = '<span class="big">'+starStr(n)+'</span>'
-      + e + ' &nbsp;&middot;&nbsp; ' + fmt(t) + ' &nbsp;&middot;&nbsp; ' + why;
+      + e + ' &nbsp;&middot;&nbsp; ' + fmt(t) + ' &nbsp;&middot;&nbsp; ' + why + shareBtn;
     return;
   }
   if(hist.length >= lev().m){
@@ -1060,6 +1118,8 @@ $('ops').addEventListener('click', function(ev){
   while(el && el!==$('ops') && !(el.getAttribute && el.getAttribute('data-op'))) el=el.parentNode;
   if(el && el.getAttribute && el.getAttribute('data-op')) chooseOp(el.getAttribute('data-op'));
 });
+wireShare($('msg'), 'match');
+wireShare($('msg24'), 'g24');
 var t24Btns=document.querySelectorAll('.tier[data-t24]');
 for(var qi=0; qi<t24Btns.length; qi++){
   (function(btn){
@@ -1090,5 +1150,12 @@ if(typeof navigator !== 'undefined' && navigator.serviceWorker && typeof window 
 
 showHome();
 </script>
+<!-- Cloudflare Web Analytics: deliberately placed after the app's own </script>
+     above, not in <head> - tests/*.js extract the app's JS by slicing between
+     the first '<script>' and first '</script>' in this file. This tag's own
+     </script> would become that first match if placed earlier, truncating the
+     slice to nothing and breaking every test. -->
+<script type='module' src='https://static.cloudflareinsights.com/beacon.min.js' data-cf-beacon='{"token": "5bd9679f0027416a95f5f87a6e5c281e"}'></script>
+<!-- End Cloudflare Web Analytics -->
 </body>
 </html>
