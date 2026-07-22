@@ -31,7 +31,7 @@ tok=encode(lev().s[0]); for(let k=0;k<lev().m;k++) hist.push([]); check();
 chk('daily solved                      ', solved, true);
 chk('win message includes Share button ', dom.els.msg.innerHTML.indexOf('data-share="match"')>=0, true);
 chk('lastShare.match is populated      ', lastShare.match.length>0, true);
-chk('  names the game                  ', lastShare.match.indexOf('Matchstick Daily')>=0, true);
+chk('  names the game                  ', lastShare.match.indexOf('Matchstick Math Daily')>=0, true);
 chk('  shows a star rating             ', lastShare.match.indexOf('★')>=0, true);
 chk('  does NOT leak the puzzle text   ', lastShare.match.indexOf(lev().p)<0, true);
 chk('  does NOT leak the answer        ', lastShare.match.indexOf(lev().s[0])<0, true);

@@ -6,7 +6,8 @@ const fs=require('fs');
 function build(htmlPath){
   const html=fs.readFileSync(htmlPath,'utf8');
   const els={};
-  const mkcl=()=>{const c=new Set();return{c,add:x=>c.add(x),remove:x=>c.delete(x),contains:x=>c.has(x)};};
+  const mkcl=()=>{const c=new Set();return{c,add:x=>c.add(x),remove:x=>c.delete(x),contains:x=>c.has(x),
+    toggle:x=>{ if(c.has(x)){c.delete(x);return false;} c.add(x); return true; }};};
   function mk(id, attrs){
     const a=Object.assign({},attrs||{});
     const listeners={};   // per-element, per-type - see the CLAUDE.md history on why a
@@ -23,7 +24,7 @@ function build(htmlPath){
     return els[id]=e;
   }
   // register every id'd element exactly as the HTML declares it
-  const tagRe=/<(button|div|span|main|svg|footer|header)\b([^>]*)>/g; let m;
+  const tagRe=/<(button|div|span|main|svg|footer|header|em)\b([^>]*)>/g; let m;
   const anon=[];
   while((m=tagRe.exec(html))){
     const attrStr=m[2], attrs={};
@@ -47,24 +48,33 @@ function build(htmlPath){
     querySelectorAll:sel=>all().filter(e=>matches(e,sel))
   };
 
+  // generic per-type listener store, so window.addEventListener works for any
+  // event (popstate, beforeinstallprompt, appinstalled, ...) - not just the
+  // one type a test happened to need first. dispatch() lets a test fire any
+  // of them, same shape as the per-element dispatch() above.
+  const winListeners={};
+  const windowAddEventListener=(t,f)=>{ (winListeners[t]=winListeners[t]||[]).push(f); };
+  const windowRemoveEventListener=(t,f)=>{ const l=winListeners[t]; if(l){ const i=l.indexOf(f); if(i>=0) l.splice(i,1); } };
+  const windowDispatch=(t,ev)=>{ (winListeners[t]||[]).slice().forEach(f=>f(ev||{})); };
+
   // minimal window.history: enough to drive real popstate-based navigation.
   // back()/forward() dispatch synchronously - real browsers queue popstate as
   // a task, but nothing else runs between a click and that task here, so the
   // end state is identical and tests can assert right after calling back().
-  let stack=[{state:null}], at=0; const popListeners=[];
-  function firePop(){ const ev={state:stack[at].state}; popListeners.slice().forEach(f=>f(ev)); }
+  let stack=[{state:null}], at=0;
   const history={
     pushState:(state)=>{ stack=stack.slice(0,at+1); stack.push({state}); at=stack.length-1; },
     replaceState:(state)=>{ stack[at]={state}; },
-    back:()=>{ if(at>0){ at--; firePop(); } },
-    forward:()=>{ if(at<stack.length-1){ at++; firePop(); } },
+    back:()=>{ if(at>0){ at--; windowDispatch('popstate', {state:stack[at].state}); } },
+    forward:()=>{ if(at<stack.length-1){ at++; windowDispatch('popstate', {state:stack[at].state}); } },
     get length(){ return stack.length; },
     get state(){ return stack[at].state; }
   };
   const window={
     history,
-    addEventListener:(t,f)=>{ if(t==='popstate') popListeners.push(f); },
-    removeEventListener:(t,f)=>{ const i=popListeners.indexOf(f); if(i>=0) popListeners.splice(i,1); }
+    addEventListener: windowAddEventListener,
+    removeEventListener: windowRemoveEventListener,
+    dispatch: windowDispatch
   };
 
   return {document, window, els};

@@ -41,7 +41,7 @@
   /* ---- menu ---- */
   #menu{align-items:center;justify-content:center;gap:14px;padding:24px}
   .title{font-size:30px;font-weight:700;letter-spacing:.5px;text-align:center;line-height:1.15}
-  .title span{display:block;font-size:13px;font-weight:400;color:var(--dim);letter-spacing:2.5px;margin-top:8px}
+  .title .sub{display:block;font-size:13px;font-weight:400;color:var(--dim);letter-spacing:2.5px;margin-top:8px}
   .tiers{display:flex;flex-direction:column;gap:12px;width:100%;max-width:340px;margin-top:18px}
   .tier{
     display:flex;align-items:center;justify-content:space-between;gap:12px;
@@ -60,6 +60,41 @@
   .stats div{flex:1;text-align:center}
   .stats b{display:block;font-size:19px;color:var(--txt);font-weight:700;line-height:1.2}
   .stats span{font-size:10.5px;color:var(--dim);letter-spacing:.7px;text-transform:uppercase}
+
+  /* ---- install banner ---- */
+  .installbar{
+    display:flex;align-items:center;gap:10px;width:100%;max-width:340px;
+    background:var(--panel);border:1px solid rgba(255,209,102,.25);border-radius:12px;
+    padding:10px 12px;margin-top:16px;font-size:12.5px;color:var(--txt)
+  }
+  .installbar span{flex:1;line-height:1.35}
+  .installbar .installbtn{
+    background:var(--sel);color:#241a15;border:none;border-radius:8px;padding:7px 13px;
+    font:inherit;font-size:12.5px;font-weight:700;cursor:pointer;white-space:nowrap
+  }
+  .installbar .closebtn{
+    background:none;border:none;color:var(--dim);font-size:19px;line-height:1;padding:0 2px;cursor:pointer
+  }
+
+  /* ---- language switcher ---- */
+  .langsel{position:absolute;top:8px;right:8px;z-index:2}
+  .langbtn{
+    background:none;border:1px solid rgba(255,255,255,.15);color:var(--dim);font:inherit;
+    font-size:12px;font-weight:700;letter-spacing:.5px;padding:5px 9px;border-radius:8px;cursor:pointer
+  }
+  .langbtn:active{background:rgba(255,255,255,.08)}
+  .langlist{
+    display:none;position:absolute;top:calc(100% + 6px);right:0;background:var(--panel);
+    border:1px solid rgba(255,255,255,.1);border-radius:10px;overflow:hidden;min-width:76px;
+    box-shadow:0 6px 18px rgba(0,0,0,.4)
+  }
+  .langlist.open{display:block}
+  .langlist button{
+    display:block;width:100%;padding:9px 12px;background:none;border:none;color:var(--txt);
+    font:inherit;font-size:13px;font-weight:600;text-align:right;cursor:pointer
+  }
+  .langlist button:active{background:#3b2a20}
+  .langlist button.cur{color:var(--sel)}
 
   /* ---- game ---- */
   header{display:flex;align-items:center;justify-content:space-between;padding:12px 14px 4px}
@@ -83,8 +118,12 @@
   .stick .hit,.slot .hit{fill:transparent}
   .stick .body{fill:url(#g-wood);stroke:rgba(0,0,0,.3);stroke-width:.8}
   .stick .head{fill:url(#g-head)}
-  .stick.sel .body{fill:var(--sel);stroke:rgba(255,255,255,.25)}
-  .stick.sel{filter:drop-shadow(0 0 10px rgba(255,209,102,.85))}
+  /* near-white, not gold: the default wood body is already tan/gold, so a
+     gold selection color has little hue contrast against it on a dim phone
+     screen. White has a much bigger jump from both the wood and the dark
+     background regardless of glow strength. */
+  .stick.sel .body{fill:#fff8ea;stroke:#fff;stroke-width:1.3}
+  .stick.sel{filter:drop-shadow(0 0 6px #fff) drop-shadow(0 0 14px rgba(255,209,102,1))}
   .slot{cursor:pointer}
   .slot .body{fill:none;stroke:var(--ghost);stroke-width:3;stroke-dasharray:7 6;opacity:.9}
   .slot.blind .body{stroke:none}
@@ -166,13 +205,25 @@
 <body>
 
 <div class="screen on" id="home">
-  <div class="title">Math Fun<span>PICK YOUR GAME</span></div>
+  <div class="langsel" id="langsel">
+    <button class="langbtn" id="langbtn">EN</button>
+    <div class="langlist" id="langlist"></div>
+  </div>
+  <div class="title">
+    <span class="i18n" data-i18n="appName">Math Fun</span>
+    <span class="sub i18n" data-i18n="pickGame">PICK YOUR GAME</span>
+  </div>
+  <div class="installbar" id="installbar" style="display:none">
+    <span id="installtext"></span>
+    <button class="installbtn" id="installbtn" style="display:none"></button>
+    <button class="closebtn" id="installclose">&times;</button>
+  </div>
   <div class="tiers">
     <button class="tier" id="pick-match">
-      <span>Matchstick Math<em>move sticks to fix a broken equation</em></span><span class="sc" id="hs-match"></span>
+      <span><span class="i18n" data-i18n="matchTitle">Matchstick Math</span><em class="i18n" data-i18n="matchDesc">move sticks to fix a broken equation</em></span><span class="sc" id="hs-match"></span>
     </button>
     <button class="tier" id="pick-g24">
-      <span>24 Game<em>combine four cards to make 24</em></span><span class="sc" id="hs-g24"></span>
+      <span><span class="i18n" data-i18n="g24Title">24 Game</span><em class="i18n" data-i18n="g24Desc">combine four cards to make 24</em></span><span class="sc" id="hs-g24"></span>
     </button>
   </div>
   <div class="stats" id="homestats"></div>
@@ -180,19 +231,22 @@
 
 <div class="screen" id="menu">
   <button class="navbtn home" id="homebtn">&#8592;</button>
-  <div class="title">Matchstick Math<span>MOVE • THINK • SOLVE</span></div>
+  <div class="title">
+    <span class="i18n" data-i18n="matchTitle">Matchstick Math</span>
+    <span class="sub i18n" data-i18n="matchSubtitle">MOVE • THINK • SOLVE</span>
+  </div>
   <div class="tiers">
     <button class="tier daily" id="dailybtn">
-      <span>Daily Puzzle<em id="dailysub">&nbsp;</em></span><span class="sc" id="sc-daily"></span>
+      <span><span class="i18n" data-i18n="dailyPuzzle">Daily Puzzle</span><em id="dailysub">&nbsp;</em></span><span class="sc" id="sc-daily"></span>
     </button>
     <button class="tier" data-tier="easy">
-      <span>Easy<em>60 puzzles &middot; move 1 stick &middot; easiest first</em></span><span class="sc" id="sc-easy"></span>
+      <span><span class="i18n" data-i18n="easyLabel">Easy</span><em class="i18n" data-i18n="easyDesc">60 puzzles &middot; move 1 stick &middot; easiest first</em></span><span class="sc" id="sc-easy"></span>
     </button>
     <button class="tier" data-tier="medium">
-      <span>Medium<em>60 puzzles &middot; bigger numbers &middot; easiest first</em></span><span class="sc" id="sc-medium"></span>
+      <span><span class="i18n" data-i18n="mediumLabel">Medium</span><em class="i18n" data-i18n="mediumDesc">60 puzzles &middot; bigger numbers &middot; easiest first</em></span><span class="sc" id="sc-medium"></span>
     </button>
     <button class="tier" data-tier="hard">
-      <span>Hard<em>60 puzzles &middot; 2 sticks, no guides &middot; easiest first</em></span><span class="sc" id="sc-hard"></span>
+      <span><span class="i18n" data-i18n="hardLabel">Hard</span><em class="i18n" data-i18n="hardDesc">60 puzzles &middot; 2 sticks, no guides &middot; easiest first</em></span><span class="sc" id="sc-hard"></span>
     </button>
   </div>
   <div class="stats" id="stats"></div>
@@ -201,19 +255,22 @@
 
 <div class="screen" id="menu24">
   <button class="navbtn home" id="home24btn">&#8592;</button>
-  <div class="title">24 Game<span>FOUR CARDS &bull; MAKE 24</span></div>
+  <div class="title">
+    <span class="i18n" data-i18n="g24Title">24 Game</span>
+    <span class="sub i18n" data-i18n="g24Subtitle">FOUR CARDS &bull; MAKE 24</span>
+  </div>
   <div class="tiers">
     <button class="tier daily" id="daily24btn">
-      <span>Daily Hand<em id="daily24sub">&nbsp;</em></span><span class="sc" id="sc24-daily"></span>
+      <span><span class="i18n" data-i18n="dailyHand">Daily Hand</span><em id="daily24sub">&nbsp;</em></span><span class="sc" id="sc24-daily"></span>
     </button>
     <button class="tier" data-t24="easy">
-      <span>Easy<em>60 hands &middot; many ways to solve</em></span><span class="sc" id="sc24-easy"></span>
+      <span><span class="i18n" data-i18n="easyLabel">Easy</span><em class="i18n" data-i18n="easy24Desc">60 hands &middot; many ways to solve</em></span><span class="sc" id="sc24-easy"></span>
     </button>
     <button class="tier" data-t24="medium">
-      <span>Medium<em>60 hands &middot; a handful of ways</em></span><span class="sc" id="sc24-medium"></span>
+      <span><span class="i18n" data-i18n="mediumLabel">Medium</span><em class="i18n" data-i18n="medium24Desc">60 hands &middot; a handful of ways</em></span><span class="sc" id="sc24-medium"></span>
     </button>
     <button class="tier" data-t24="hard">
-      <span>Hard<em>60 hands &middot; 3 ways or fewer</em></span><span class="sc" id="sc24-hard"></span>
+      <span><span class="i18n" data-i18n="hardLabel">Hard</span><em class="i18n" data-i18n="hard24Desc">60 hands &middot; 3 ways or fewer</em></span><span class="sc" id="sc24-hard"></span>
     </button>
   </div>
   <div class="total" id="total24"></div>
@@ -234,9 +291,9 @@
   <div class="ops" id="ops"></div>
   <div class="msg" id="msg24"></div>
   <footer>
-    <button class="act" id="hint24">Hint</button>
-    <button class="act" id="undo24">Undo</button>
-    <button class="act" id="reset24">Reset</button>
+    <button class="act i18n" id="hint24" data-i18n="hint">Hint</button>
+    <button class="act i18n" id="undo24" data-i18n="undo">Undo</button>
+    <button class="act i18n" id="reset24" data-i18n="reset">Reset</button>
     <button class="act primary" id="go24">Skip &#8250;</button>
   </footer>
 </div>
@@ -255,9 +312,9 @@
   <main><svg id="board" xmlns="http://www.w3.org/2000/svg"></svg></main>
   <div class="msg" id="msg"></div>
   <footer>
-    <button class="act" id="hint">Hint</button>
-    <button class="act" id="undo">Undo</button>
-    <button class="act" id="reset">Reset</button>
+    <button class="act i18n" id="hint" data-i18n="hint">Hint</button>
+    <button class="act i18n" id="undo" data-i18n="undo">Undo</button>
+    <button class="act i18n" id="reset" data-i18n="reset">Reset</button>
     <button class="act primary" id="go">Skip &#8250;</button>
   </footer>
 </div>
@@ -304,7 +361,11 @@ function civil(z){                      /* days-since-epoch -> {y,m,d}, Hinnant'
   var m = mp + (mp < 10 ? 3 : -9);
   return {y: y + (m <= 2 ? 1 : 0), m: m, d: d};
 }
-function dayLabel(z){ var c=civil(z); return MON[c.m-1]+' '+c.d; }
+function dayLabel(z){
+  var c=civil(z);
+  var months=(I18N[lang] && I18N[lang].months) || MON;
+  return tr('dateFormat', {mon:months[c.m-1], day:c.d, monNum:c.m});
+}
 function hash32(n){                     /* deterministic scramble so consecutive days differ */
   n = (n ^ 61) ^ (n >>> 16); n = n + (n << 3); n = n ^ (n >>> 4);
   n = Math.imul(n, 0x27d4eb2d); n = n ^ (n >>> 15);
@@ -509,6 +570,228 @@ function starStr(n){
   return s;
 }
 
+/* ---------- language ----------
+   Puzzle content (equations, card ranks) is language-agnostic and never
+   translated - only the UI chrome routes through t(). English values here
+   must stay byte-identical to what was previously hardcoded, since several
+   tests (feedback.js in particular) assert exact message text and default
+   lang is 'en'. {placeholder} substitution lets each language reorder a
+   sentence around a variable instead of fixed prefix/suffix concatenation. */
+var I18N = {
+  en: {
+    appName:'Math Fun', pickGame:'PICK YOUR GAME',
+    matchTitle:'Matchstick Math', matchDesc:'move sticks to fix a broken equation',
+    g24Title:'24 Game', g24Desc:'combine four cards to make 24',
+    statStreak:'Streak', statBest:'Best', statDailies:'Dailies', statSolved:'Solved',
+    matchSubtitle:'MOVE • THINK • SOLVE', dailyPuzzle:'Daily Puzzle',
+    easyLabel:'Easy', easyDesc:'60 puzzles · move 1 stick · easiest first',
+    mediumLabel:'Medium', mediumDesc:'60 puzzles · bigger numbers · easiest first',
+    hardLabel:'Hard', hardDesc:'60 puzzles · 2 sticks, no guides · easiest first',
+    totalLine:'{done} of {max} puzzles  ·  ★ {grand} / {cap}',
+    g24Subtitle:'FOUR CARDS • MAKE 24', dailyHand:'Daily Hand',
+    easy24Desc:'60 hands · many ways to solve',
+    medium24Desc:'60 hands · a handful of ways',
+    hard24Desc:'60 hands · 3 ways or fewer',
+    total24Line:'{done} of {max} hands  ·  ★ {grand} / {cap}',
+    hint:'Hint', undo:'Undo', reset:'Reset', skip:'Skip', next:'Next', done:'Done', giveUp:'Give up',
+    dailyLevelMatch:'Daily · {date}', dailyLevel24:'Daily 24 · {date}', levelOf:'{tier} {n} / {max}',
+    moveSingular:'move', movePlural:'moves', movesUsed:'{used} / {max} {word} used',
+    cardSingular:'card', cardPlural:'cards', cardsLeft:'{n} {word} left',
+    solvedWord:'solved', notSolvedYet:'not solved yet', par:'par {t}',
+    underPar:'under par, unaided', hintUsed:'hint used', undoUsed:'undo used', parIs:'par is {t}',
+    hintAlreadyMatches:'The board already matches the answer',
+    hintTooFar:'Too far from the answer - undo or reset first',
+    hintMoveStick:'Move the glowing stick to the marked gap',
+    hint24NoWay:'No way to reach 24 from here - undo or reset',
+    hint24Already24:'That card is already 24',
+    hint24Try:'Try the two highlighted cards with  {op}',
+    noMovesLeft:'No moves left - undo or reset',
+    badDigit:'The red slot isn\'t a readable digit', badOp:'The red slot isn\'t a + or -',
+    badEquals:'The equals sign needs both its sticks', notTrue:'{e} isn\'t true - undo and retry',
+    divByZero:'Cannot divide by zero', g24Makes:'That makes {v}, not 24 - undo or reset',
+    g24Unreachable:'24 is no longer reachable from these cards',
+    shareLine1:'Math Fun — {game} Daily · {date}', shareStreak:'🔥 {n}-day streak',
+    shareBtn:'Share', shared:'Shared!', copied:'Copied!',
+    installIOSText:'Tap Share, then "Add to Home Screen" to install',
+    installAndroidText:'Install this app for offline play and a home screen icon',
+    installBtn:'Install',
+    dateFormat:'{mon} {day}',
+    months:['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec']
+  },
+  es: {
+    appName:'Math Fun', pickGame:'ELIGE UN JUEGO',
+    matchTitle:'Cerillas Matemáticas', matchDesc:'mueve palillos para arreglar una ecuación rota',
+    g24Title:'Juego del 24', g24Desc:'combina cuatro cartas para hacer 24',
+    statStreak:'Racha', statBest:'Mejor', statDailies:'Diarios', statSolved:'Resueltos',
+    matchSubtitle:'MUEVE • PIENSA • RESUELVE', dailyPuzzle:'Puzzle Diario',
+    easyLabel:'Fácil', easyDesc:'60 puzzles · mueve 1 palillo · los más fáciles primero',
+    mediumLabel:'Medio', mediumDesc:'60 puzzles · números más grandes · los más fáciles primero',
+    hardLabel:'Difícil', hardDesc:'60 puzzles · 2 palillos, sin guías · los más fáciles primero',
+    totalLine:'{done} de {max} puzzles  ·  ★ {grand} / {cap}',
+    g24Subtitle:'CUATRO CARTAS • HAZ 24', dailyHand:'Mano Diaria',
+    easy24Desc:'60 manos · muchas formas de resolver',
+    medium24Desc:'60 manos · algunas formas',
+    hard24Desc:'60 manos · 3 formas o menos',
+    total24Line:'{done} de {max} manos  ·  ★ {grand} / {cap}',
+    hint:'Pista', undo:'Deshacer', reset:'Reiniciar', skip:'Saltar', next:'Siguiente', done:'Hecho', giveUp:'Rendirse',
+    dailyLevelMatch:'Diario · {date}', dailyLevel24:'Diario 24 · {date}', levelOf:'{tier} {n} / {max}',
+    moveSingular:'palillo usado', movePlural:'palillos usados', movesUsed:'{used} / {max} {word}',
+    cardSingular:'carta restante', cardPlural:'cartas restantes', cardsLeft:'{n} {word}',
+    solvedWord:'resuelto', notSolvedYet:'aún no resuelto', par:'par {t}',
+    underPar:'bajo par, sin ayuda', hintUsed:'pista usada', undoUsed:'deshacer usado', parIs:'el par es {t}',
+    hintAlreadyMatches:'El tablero ya coincide con la respuesta',
+    hintTooFar:'Demasiado lejos de la respuesta - deshaz o reinicia',
+    hintMoveStick:'Mueve el palillo brillante al hueco marcado',
+    hint24NoWay:'No hay forma de llegar a 24 desde aquí - deshaz o reinicia',
+    hint24Already24:'Esa carta ya es 24',
+    hint24Try:'Prueba las dos cartas resaltadas con  {op}',
+    noMovesLeft:'No quedan movimientos - deshaz o reinicia',
+    badDigit:'La casilla roja no forma un dígito legible', badOp:'La casilla roja no es un + o -',
+    badEquals:'El signo igual necesita sus dos palillos', notTrue:'{e} no es correcto - deshaz e inténtalo de nuevo',
+    divByZero:'No se puede dividir entre cero', g24Makes:'Eso da {v}, no 24 - deshaz o reinicia',
+    g24Unreachable:'24 ya no es alcanzable con estas cartas',
+    shareLine1:'Math Fun — {game} Diario · {date}', shareStreak:'🔥 racha de {n} días',
+    shareBtn:'Compartir', shared:'¡Compartido!', copied:'¡Copiado!',
+    installIOSText:'Toca Compartir y luego "Agregar a inicio" para instalar',
+    installAndroidText:'Instala esta app para jugar sin conexión y tener un icono',
+    installBtn:'Instalar',
+    dateFormat:'{day} {mon}',
+    months:['ene','feb','mar','abr','may','jun','jul','ago','sep','oct','nov','dic']
+  },
+  fr: {
+    appName:'Math Fun', pickGame:'CHOISIS UN JEU',
+    matchTitle:'Maths en Allumettes', matchDesc:'déplace des allumettes pour corriger une équation',
+    g24Title:'Jeu du 24', g24Desc:'combine quatre cartes pour faire 24',
+    statStreak:'Série', statBest:'Record', statDailies:'Quotidiens', statSolved:'Résolus',
+    matchSubtitle:'BOUGE • RÉFLÉCHIS • RÉSOUS', dailyPuzzle:'Puzzle du Jour',
+    easyLabel:'Facile', easyDesc:'60 puzzles · déplace 1 allumette · du plus facile',
+    mediumLabel:'Moyen', mediumDesc:'60 puzzles · plus grands nombres · du plus facile',
+    hardLabel:'Difficile', hardDesc:'60 puzzles · 2 allumettes, sans guides · du plus facile',
+    totalLine:'{done} sur {max} puzzles  ·  ★ {grand} / {cap}',
+    g24Subtitle:'QUATRE CARTES • FAIS 24', dailyHand:'Main du Jour',
+    easy24Desc:'60 mains · beaucoup de solutions',
+    medium24Desc:'60 mains · quelques solutions',
+    hard24Desc:'60 mains · 3 solutions ou moins',
+    total24Line:'{done} sur {max} mains  ·  ★ {grand} / {cap}',
+    hint:'Indice', undo:'Annuler', reset:'Réinit.', skip:'Passer', next:'Suivant', done:'Terminé', giveUp:'Abandonner',
+    dailyLevelMatch:'Quotidien · {date}', dailyLevel24:'Quotidien 24 · {date}', levelOf:'{tier} {n} / {max}',
+    moveSingular:'allumette utilisée', movePlural:'allumettes utilisées', movesUsed:'{used} / {max} {word}',
+    cardSingular:'carte restante', cardPlural:'cartes restantes', cardsLeft:'{n} {word}',
+    solvedWord:'résolu', notSolvedYet:'pas encore résolu', par:'par {t}',
+    underPar:'sous le par, sans aide', hintUsed:'indice utilisé', undoUsed:'annulation utilisée', parIs:'le par est {t}',
+    hintAlreadyMatches:'Le plateau correspond déjà à la réponse',
+    hintTooFar:'Trop loin de la réponse - annule ou réinitialise',
+    hintMoveStick:'Déplace l\'allumette lumineuse vers l\'espace marqué',
+    hint24NoWay:'Impossible d\'atteindre 24 à partir d\'ici - annule ou réinitialise',
+    hint24Already24:'Cette carte vaut déjà 24',
+    hint24Try:'Essaie les deux cartes en surbrillance avec  {op}',
+    noMovesLeft:'Plus de coups possibles - annule ou réinitialise',
+    badDigit:'La case rouge ne forme pas un chiffre lisible', badOp:'La case rouge n\'est pas un + ou -',
+    badEquals:'Le signe égal a besoin de ses deux allumettes', notTrue:'{e} n\'est pas vrai - annule et réessaie',
+    divByZero:'Division par zéro impossible', g24Makes:'Cela fait {v}, pas 24 - annule ou réinitialise',
+    g24Unreachable:'24 n\'est plus atteignable avec ces cartes',
+    shareLine1:'Math Fun — {game} du Jour · {date}', shareStreak:'🔥 série de {n} jours',
+    shareBtn:'Partager', shared:'Partagé !', copied:'Copié !',
+    installIOSText:'Appuie sur Partager puis "Sur l\'écran d\'accueil" pour installer',
+    installAndroidText:'Installe cette appli pour jouer hors ligne avec une icône',
+    installBtn:'Installer',
+    dateFormat:'{day} {mon}',
+    months:['janv.','févr.','mars','avr.','mai','juin','juil.','août','sept.','oct.','nov.','déc.']
+  },
+  zh: {
+    appName:'Math Fun', pickGame:'选择游戏',
+    matchTitle:'火柴数学', matchDesc:'移动火柴棒，修正错误的等式',
+    g24Title:'24点游戏', g24Desc:'组合四张牌，凑出24',
+    statStreak:'连续天数', statBest:'最佳', statDailies:'每日挑战', statSolved:'已解决',
+    matchSubtitle:'移动 • 思考 • 解题', dailyPuzzle:'每日谜题',
+    easyLabel:'简单', easyDesc:'60 题 · 移动 1 根火柴 · 由易到难',
+    mediumLabel:'中等', mediumDesc:'60 题 · 数字更大 · 由易到难',
+    hardLabel:'困难', hardDesc:'60 题 · 移动 2 根火柴，无提示 · 由易到难',
+    totalLine:'{max} 题中已完成 {done} 题  ·  ★ {grand} / {cap}',
+    g24Subtitle:'四张牌 • 凑出24', dailyHand:'每日一手',
+    easy24Desc:'60 手 · 解法很多',
+    medium24Desc:'60 手 · 解法不多',
+    hard24Desc:'60 手 · 解法 3 种或更少',
+    total24Line:'{max} 手中已完成 {done} 手  ·  ★ {grand} / {cap}',
+    hint:'提示', undo:'撤销', reset:'重置', skip:'跳过', next:'下一题', done:'完成', giveUp:'放弃',
+    dailyLevelMatch:'每日 · {date}', dailyLevel24:'每日24点 · {date}', levelOf:'{tier} {n} / {max}',
+    moveSingular:'步', movePlural:'步', movesUsed:'已用 {used} / {max} {word}',
+    cardSingular:'张', cardPlural:'张', cardsLeft:'剩 {n} {word}',
+    solvedWord:'已解决', notSolvedYet:'尚未解决', par:'标准用时 {t}',
+    underPar:'用时优秀，无辅助', hintUsed:'使用了提示', undoUsed:'使用了撤销', parIs:'标准用时为 {t}',
+    hintAlreadyMatches:'棋盘已经与答案一致',
+    hintTooFar:'与答案相差太远 - 请撤销或重置',
+    hintMoveStick:'将发光的火柴移到标记的位置',
+    hint24NoWay:'从这里无法凑出24 - 请撤销或重置',
+    hint24Already24:'这张牌已经是24',
+    hint24Try:'试试用 {op} 组合这两张高亮的牌',
+    noMovesLeft:'没有可用步数了 - 请撤销或重置',
+    badDigit:'红色格子无法读作有效数字', badOp:'红色格子不是 + 或 -',
+    badEquals:'等号需要两根火柴都在', notTrue:'{e} 不成立 - 请撤销后重试',
+    divByZero:'不能除以零', g24Makes:'这样得到 {v}，不是 24 - 请撤销或重置',
+    g24Unreachable:'这些牌已经无法凑出24了',
+    shareLine1:'Math Fun — {game}每日挑战 · {date}', shareStreak:'🔥 连续 {n} 天',
+    shareBtn:'分享', shared:'已分享！', copied:'已复制！',
+    installIOSText:'点击"分享"，然后选择"添加到主屏幕"即可安装',
+    installAndroidText:'安装此应用即可离线畅玩，并添加到主屏幕图标',
+    installBtn:'安装',
+    dateFormat:'{monNum}月{day}日',
+    months:null
+  }
+};
+var LANGS=[{code:'en',label:'EN'},{code:'es',label:'ES'},{code:'fr',label:'FR'},{code:'zh',label:'中文'}];
+function detectLang(){
+  try{ var saved=localStorage.getItem('ms_lang'); if(saved && I18N[saved]) return saved; }catch(err){}
+  try{ var nav=(navigator.language||'').slice(0,2).toLowerCase(); if(I18N[nav]) return nav; }catch(err){}
+  return 'en';
+}
+var lang = detectLang();
+/* named tr(), not t() - this codebase already uses "t" everywhere as a local
+   var/param (flash(t,c), var t=curTime(), function openTier(t), ...); a
+   global function called t() would get silently shadowed by every one of
+   those and crash the first time translated text was needed inside them. */
+function tr(key, vars){
+  var s = (I18N[lang] && I18N[lang][key]) || I18N.en[key] || key;
+  if(vars) for(var k in vars) s = s.split('{'+k+'}').join(vars[k]);
+  return s;
+}
+function pluralWord(n, singularKey, pluralKey){ return tr(n>1 ? pluralKey : singularKey); }
+function applyI18n(){
+  var els = document.querySelectorAll('.i18n');
+  for(var i=0;i<els.length;i++){
+    var key = els[i].getAttribute('data-i18n');
+    if(key) els[i].textContent = tr(key);
+  }
+  buildLangMenu();
+}
+function buildLangMenu(){
+  var html='', i;
+  for(i=0;i<LANGS.length;i++){
+    html += '<button data-lang="'+LANGS[i].code+'" class="'+(LANGS[i].code===lang?'cur':'')+'">'+LANGS[i].label+'</button>';
+  }
+  $('langlist').innerHTML = html;
+  var cur=LANGS[0];
+  for(i=0;i<LANGS.length;i++) if(LANGS[i].code===lang) cur=LANGS[i];
+  $('langbtn').innerHTML = cur.label + ' <span class="car">&#9662;</span>';
+}
+function currentScreen(){
+  var ids=['home','menu','menu24','game','g24'];
+  for(var i=0;i<ids.length;i++) if($(ids[i]).className==='screen on') return ids[i];
+  return 'home';
+}
+function setLang(l){
+  if(!I18N[l] || l===lang){ return; }
+  lang=l;
+  try{ localStorage.setItem('ms_lang', l); }catch(err){}
+  applyI18n();
+  var s=currentScreen();
+  if(s==='home') showHome();
+  else if(s==='menu') showMenu();
+  else if(s==='menu24') showMenu24();
+  else if(s==='game') draw();
+  else if(s==='g24') draw24();
+}
+
 /* ---------- state ---------- */
 var tier='easy', idx=0, tok=[], hist=[], sel=null, solved=false;
 var t0=0, elapsed=0, ticking=false, clean=true, timerId=null;
@@ -570,10 +853,12 @@ function showHome(){
   $('hs-match').textContent = msDone+' / '+msMax;
   $('hs-g24').textContent   = gDone+' / '+gMax;
   $('homestats').innerHTML =
-      '<div><b>'+daily.streak+'</b><span>Streak</span></div>'
-    + '<div><b>'+daily.best+'</b><span>Best</span></div>'
-    + '<div><b>'+dailyCount()+'</b><span>Dailies</span></div>'
-    + '<div><b>'+(msDone+gDone)+'</b><span>Solved</span></div>';
+      '<div><b>'+daily.streak+'</b><span>'+tr('statStreak')+'</span></div>'
+    + '<div><b>'+daily.best+'</b><span>'+tr('statBest')+'</span></div>'
+    + '<div><b>'+dailyCount()+'</b><span>'+tr('statDailies')+'</span></div>'
+    + '<div><b>'+(msDone+gDone)+'</b><span>'+tr('statSolved')+'</span></div>';
+  applyI18n();
+  refreshInstallBar();
 }
 function showMenu(){
   stopClock();
@@ -586,14 +871,15 @@ function showMenu(){
     grand+=got; max+=cap;
   }
   var z=dayNo(), dn=daily.done[z]||0;
-  $('dailysub').innerHTML = dayLabel(z) + (dn ? ' &middot; solved' : ' &middot; not solved yet');
+  $('dailysub').innerHTML = dayLabel(z) + ' &middot; ' + (dn ? tr('solvedWord') : tr('notSolvedYet'));
   $('sc-daily').textContent = dn ? starStr(dn) : '›';
   $('stats').innerHTML =
-      '<div><b>'+daily.streak+'</b><span>Streak</span></div>'
-    + '<div><b>'+daily.best+'</b><span>Best</span></div>'
-    + '<div><b>'+dailyCount()+'</b><span>Dailies</span></div>'
-    + '<div><b>'+solvedCount()+'</b><span>Solved</span></div>';
-  $('total').textContent = solvedCount()+' of '+campaignTotal()+' puzzles  ·  ★ '+grand+' / '+max;
+      '<div><b>'+daily.streak+'</b><span>'+tr('statStreak')+'</span></div>'
+    + '<div><b>'+daily.best+'</b><span>'+tr('statBest')+'</span></div>'
+    + '<div><b>'+dailyCount()+'</b><span>'+tr('statDailies')+'</span></div>'
+    + '<div><b>'+solvedCount()+'</b><span>'+tr('statSolved')+'</span></div>';
+  $('total').textContent = tr('totalLine', {done:solvedCount(), max:campaignTotal(), grand:grand, cap:max});
+  applyI18n();
 }
 function openTier(t){
   tier=t;
@@ -646,10 +932,11 @@ function showMenu24(){
     $('sc24-'+tn).textContent='\u2605 '+got+' / '+(pack.length*3);
     grand+=got; max+=pack.length*3;
   }
-  $('daily24sub').innerHTML = dayLabel(z) + (dn ? ' &middot; solved' : ' &middot; not solved yet');
+  $('daily24sub').innerHTML = dayLabel(z) + ' &middot; ' + (dn ? tr('solvedWord') : tr('notSolvedYet'));
   $('sc24-daily').textContent = dn ? starStr(dn) : '\u203a';
-  $('total24').textContent = solved24Count()+' of '+(HANDS24.easy.length+HANDS24.medium.length+HANDS24.hard.length)
-                             +' hands  \u00b7  \u2605 '+grand+' / '+max;
+  $('total24').textContent = tr('total24Line', {done:solved24Count(),
+      max:(HANDS24.easy.length+HANDS24.medium.length+HANDS24.hard.length), grand:grand, cap:max});
+  applyI18n();
 }
 function openTier24(t){
   g24.tier=t;
@@ -723,17 +1010,17 @@ function draw24(){
   $('ops').innerHTML=ops;
 
   var left=live24().length;
-  $('sub24').textContent = g24.solved ? 'solved' : (left+' card'+(left>1?'s':'')+' left');
+  $('sub24').textContent = g24.solved ? tr('solvedWord') : tr('cardsLeft', {n:left, word:pluralWord(left,'cardSingular','cardPlural')});
   $('lvlnum24').textContent = (g24.tier==='daily')
-      ? 'Daily 24 \u00b7 '+dayLabel(dayNo())
-      : T24[g24.tier].name+' '+(g24.idx+1)+' / '+HANDS24[g24.tier].length;
-  $('par24').textContent='par '+fmt(par24());
+      ? tr('dailyLevel24', {date:dayLabel(dayNo())})
+      : tr('levelOf', {tier:tr(g24.tier+'Label'), n:g24.idx+1, max:HANDS24[g24.tier].length});
+  $('par24').textContent=tr('par', {t:fmt(par24())});
   $('stars24').textContent = starStr(g24.tier==='daily'
       ? (daily.done24[dayNo()]||0) : (stars[handKey(hand24())]||0));
   $('undo24').disabled = g24.hist.length===0 || g24.solved;
   $('reset24').disabled = g24.hist.length===0 && !g24.solved;
-  $('go24').innerHTML = g24.tier==='daily' ? (g24.solved?'Done':'Give up')
-                                           : (g24.solved?'Next &#8250;':'Skip &#8250;');
+  $('go24').innerHTML = g24.tier==='daily' ? (g24.solved?tr('done'):tr('giveUp'))
+                                           : (g24.solved?tr('next')+' &#8250;':tr('skip')+' &#8250;');
   $('next24').style.visibility = g24.tier==='daily' ? 'hidden' : '';
   $('next24').disabled = g24.tier==='daily';
   tick24(); armTimer();
@@ -755,13 +1042,13 @@ function load(i){
   startClock();
   if(tier==='daily'){
     var z=dayNo();
-    $('lvlnum').textContent = 'Daily · '+dayLabel(z);
+    $('lvlnum').textContent = tr('dailyLevelMatch', {date:dayLabel(z)});
     $('lvlstars').textContent = starStr(daily.done[z]||0);
   } else {
-    $('lvlnum').textContent = TIERS[tier].name+' '+(idx+1)+' / '+P.length;
+    $('lvlnum').textContent = tr('levelOf', {tier:tr(tier+'Label'), n:idx+1, max:P.length});
     $('lvlstars').textContent = starStr(starsFor(tier,idx));
   }
-  $('par').textContent = 'par '+fmt(parNow());
+  $('par').textContent = tr('par', {t:fmt(parNow())});
   $('msg').textContent=''; $('msg').className='msg';
   draw();
 }
@@ -822,11 +1109,11 @@ function draw(){
   if(solved) board.classList.add('win'); else board.classList.remove('win');
 
   var M=lev().m;
-  $('sub').textContent = solved ? 'solved' : (hist.length+' / '+M+' move'+(M>1?'s':'')+' used');
+  $('sub').textContent = solved ? tr('solvedWord') : tr('movesUsed', {used:hist.length, max:M, word:pluralWord(M,'moveSingular','movePlural')});
   $('undo').disabled = (hist.length===0) || solved;
   $('reset').disabled = (hist.length===0) && !solved;
   var isDaily = (tier==='daily');
-  $('go').innerHTML = isDaily ? (solved ? 'Done' : 'Give up') : (solved ? 'Next &#8250;' : 'Skip &#8250;');
+  $('go').innerHTML = isDaily ? (solved ? tr('done') : tr('giveUp')) : (solved ? tr('next')+' &#8250;' : tr('skip')+' &#8250;');
   $('next').style.visibility = isDaily ? 'hidden' : '';
   $('next').disabled = isDaily;
   tick(); armTimer();
@@ -851,15 +1138,15 @@ function hintDiff(){
 function showHint(){
   if(solved) return;
   var d=hintDiff();
-  if(!d.rem.length){ flash('The board already matches the answer',''); return; }
+  if(!d.rem.length){ flash(tr('hintAlreadyMatches'),''); return; }
   if(d.rem.length > (lev().m - hist.length)){
-    flash('Too far from the answer - undo or reset first','no');
+    flash(tr('hintTooFar'),'no');
     return;
   }
   hint={src:d.rem[0], tgt:d.add[0]};
   sel=null;
   clean=false; usedHint=true;
-  flash('Move the glowing stick to the marked gap','');
+  flash(tr('hintMoveStick'),'');
   draw();
 }
 
@@ -881,7 +1168,7 @@ function combine24(a,b){
   var op=opByKey(g24.op);
   if(!op || a===b) return;
   var v=op.f(g24.cards[a].val, g24.cards[b].val);
-  if(v===null){ flash24('Cannot divide by zero','no'); return; }
+  if(v===null){ flash24(tr('divByZero'),'no'); return; }
   g24.hist.push(snap24());
   g24.cards[b] = {val:v, suit:'', made:true, gone:false,
                   label: v.d===1 ? String(v.n) : (v.n+'/'+v.d)};
@@ -899,25 +1186,25 @@ function check24(){
       var n=award24();
       if(g24.tier==='daily') recordDaily24(dayNo(), n);
       else setStarKey(handKey(hand24()), n);
-      var t=curTime(), why = (n===3)?'under par, unaided'
-                    : g24.usedHint ? 'hint used'
-                    : (!g24.clean)  ? 'undo used' : 'par is '+fmt(par24());
+      var t=curTime(), why = (n===3)?tr('underPar')
+                    : g24.usedHint ? tr('hintUsed')
+                    : (!g24.clean)  ? tr('undoUsed') : tr('parIs',{t:fmt(par24())});
       var shareBtn='';
       if(g24.tier==='daily'){
-        lastShare.g24 = shareText('24 Game', n, t, dayNo());
-        shareBtn = ' <button class="sharebtn" data-share="g24">Share</button>';
+        lastShare.g24 = shareText(tr('g24Title'), n, t, dayNo());
+        shareBtn = ' <button class="sharebtn" data-share="g24">'+tr('shareBtn')+'</button>';
       }
       $('msg24').className='msg ok';
       $('msg24').innerHTML='<span class="big">'+starStr(n)+'</span>24 &nbsp;&middot;&nbsp; '
                           +fmt(t)+' &nbsp;&middot;&nbsp; '+why+shareBtn;
       return;
     }
-    flash24('That makes '+fStr(v)+', not 24 - undo or reset','no');
+    flash24(tr('g24Makes',{v:fStr(v)}),'no');
     return;
   }
   /* still cards left: warn early if 24 is now unreachable */
   var vals=live.map(function(i){ return g24.cards[i].val; });
-  if(!solvable24(vals)) flash24('24 is no longer reachable from these cards','no');
+  if(!solvable24(vals)) flash24(tr('g24Unreachable'),'no');
   else $('msg24').textContent='';
 }
 function award24(){
@@ -932,11 +1219,11 @@ function hint24(){
   var live=live24();
   var vals=live.map(function(i){ return g24.cards[live.indexOf(i)>=0?i:i].val; });
   var step=solve24(vals);
-  if(!step){ flash24('No way to reach 24 from here - undo or reset','no'); return; }
-  if(step.done){ flash24('That card is already 24',''); return; }
+  if(!step){ flash24(tr('hint24NoWay'),'no'); return; }
+  if(step.done){ flash24(tr('hint24Already24'),''); return; }
   g24.hint={cards:[live[step.i], live[step.j]], op:step.op};
   g24.clean=false; g24.usedHint=true;
-  flash24('Try the two highlighted cards with  '+step.op, '');
+  flash24(tr('hint24Try',{op:step.op}), '');
   draw24();
 }
 
@@ -948,9 +1235,9 @@ function hint24(){
 var lastShare = {match:'', g24:''};
 function shareText(game, n, t, z){
   var lines = [
-    'Math Fun — ' + game + ' Daily · ' + dayLabel(z),
+    tr('shareLine1', {game:game, date:dayLabel(z)}),
     starStr(n) + '   ' + fmt(t),
-    '🔥 ' + daily.streak + '-day streak'
+    tr('shareStreak', {n:daily.streak})
   ];
   try{ if(location.href) lines.push(location.href); }catch(err){}
   return lines.join('\n');
@@ -976,7 +1263,7 @@ function wireShare(msgEl, key){
     var original=el.textContent;
     doShare(lastShare[key], function(result){
       if(result==='unavailable' || typeof window==='undefined') return;
-      el.textContent = (result==='copied') ? 'Copied!' : 'Shared!';
+      el.textContent = (result==='copied') ? tr('copied') : tr('shared');
       setTimeout(function(){ el.textContent=original; }, 1500);
     });
   });
@@ -1001,7 +1288,7 @@ board.addEventListener('click', function(ev){
     return;
   }
   if(!sel) return;
-  if(hist.length >= lev().m){ flash('No moves left - undo or reset','no'); return; }
+  if(hist.length >= lev().m){ flash(tr('noMovesLeft'),'no'); return; }
 
   hist.push(tok.map(function(z){ return {t:z.t, v:z.v}; }));
   hint=null; badCells=[];
@@ -1040,14 +1327,14 @@ function check(){
     }
     $('msg').className='msg ok';
     var t=curTime(), par=parNow();
-    var why = (n===3) ? 'under par, unaided'
-            : (usedHint && t<=par) ? 'hint used'
-            : (!clean && t<=par) ? 'undo used'
-            : 'par is '+fmt(par);
+    var why = (n===3) ? tr('underPar')
+            : (usedHint && t<=par) ? tr('hintUsed')
+            : (!clean && t<=par) ? tr('undoUsed')
+            : tr('parIs',{t:fmt(par)});
     var shareBtn='';
     if(tier==='daily'){
-      lastShare.match = shareText('Matchstick', n, t, dayNo());
-      shareBtn = ' <button class="sharebtn" data-share="match">Share</button>';
+      lastShare.match = shareText(tr('matchTitle'), n, t, dayNo());
+      shareBtn = ' <button class="sharebtn" data-share="match">'+tr('shareBtn')+'</button>';
     }
     $('msg').innerHTML = '<span class="big">'+starStr(n)+'</span>'
       + e + ' &nbsp;&middot;&nbsp; ' + fmt(t) + ' &nbsp;&middot;&nbsp; ' + why + shareBtn;
@@ -1057,11 +1344,11 @@ function check(){
     badCells = malformed();
     if(badCells.length){
       var k=tok[badCells[0]];
-      flash(k.t==='d' ? 'The red slot isn\'t a readable digit'
-          : k.t==='o' ? 'The red slot isn\'t a + or -'
-          : 'The equals sign needs both its sticks', 'no');
+      flash(k.t==='d' ? tr('badDigit')
+          : k.t==='o' ? tr('badOp')
+          : tr('badEquals'), 'no');
     } else {
-      flash(e+' isn\'t true - undo and retry','no');
+      flash(tr('notTrue',{e:e}),'no');
     }
   } else { badCells=[]; $('msg').textContent=''; }
 }
@@ -1120,6 +1407,14 @@ $('ops').addEventListener('click', function(ev){
 });
 wireShare($('msg'), 'match');
 wireShare($('msg24'), 'g24');
+$('langbtn').onclick = function(){ $('langlist').classList.toggle('open'); };
+$('langlist').addEventListener('click', function(ev){
+  var el=ev.target;
+  while(el && el!==$('langlist') && !(el.getAttribute && el.getAttribute('data-lang'))) el=el.parentNode;
+  if(!el || !el.getAttribute || !el.getAttribute('data-lang')) return;
+  $('langlist').classList.remove('open');
+  setLang(el.getAttribute('data-lang'));
+});
 var t24Btns=document.querySelectorAll('.tier[data-t24]');
 for(var qi=0; qi<t24Btns.length; qi++){
   (function(btn){
@@ -1138,6 +1433,63 @@ for(var bi=0; bi<tierBtns.length; bi++){
     if(!t || !PACKS[t]) return;
     btn.onclick = function(){ openTier(t); pushScreen('game'); };
   })(tierBtns[bi]);
+}
+
+/* ---------- install prompt ----------
+   Android Chrome can trigger a real one-tap install via beforeinstallprompt;
+   iOS Safari exposes no such API at all, so the only thing that works there
+   is an on-screen instruction pointing at the Share button. Both funnel into
+   one dismissible banner on the home screen. */
+function isStandalone(){
+  try{
+    return (typeof window !== 'undefined' && window.matchMedia && matchMedia('(display-mode: standalone)').matches)
+        || navigator.standalone === true;
+  }catch(err){ return false; }
+}
+function isIOS(){
+  try{ return /iphone|ipad|ipod/i.test(navigator.userAgent || ''); }catch(err){ return false; }
+}
+function installDismissed(){
+  try{ return localStorage.getItem('ms_install_dismissed') === '1'; }catch(err){ return false; }
+}
+function dismissInstallBar(){
+  try{ localStorage.setItem('ms_install_dismissed', '1'); }catch(err){}
+  $('installbar').style.display = 'none';
+}
+var deferredInstallPrompt = null;
+function refreshInstallBar(){
+  if(installDismissed() || isStandalone()){ $('installbar').style.display = 'none'; return; }
+  if(deferredInstallPrompt){
+    $('installtext').textContent = tr('installAndroidText');
+    $('installbtn').textContent = tr('installBtn');
+    $('installbtn').style.display = '';
+    $('installbar').style.display = 'flex';
+  } else if(isIOS()){
+    $('installtext').textContent = tr('installIOSText');
+    $('installbtn').style.display = 'none';
+    $('installbar').style.display = 'flex';
+  } else {
+    $('installbar').style.display = 'none';
+  }
+}
+$('installbtn').onclick = function(){
+  if(!deferredInstallPrompt) return;
+  var p = deferredInstallPrompt;
+  deferredInstallPrompt = null;
+  p.prompt();
+  p.userChoice.then(function(){ refreshInstallBar(); }).catch(function(){});
+};
+$('installclose').onclick = function(){ dismissInstallBar(); };
+if(typeof window !== 'undefined'){
+  window.addEventListener('beforeinstallprompt', function(ev){
+    ev.preventDefault();
+    deferredInstallPrompt = ev;
+    refreshInstallBar();
+  });
+  window.addEventListener('appinstalled', function(){
+    deferredInstallPrompt = null;
+    dismissInstallBar();
+  });
 }
 
 /* offline shell: guarded so it's a no-op in the Node test harness, where
