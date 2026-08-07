@@ -151,9 +151,35 @@ refresh) make this a real installable PWA, not just a bookmarkable page.
   exiting the app mid-puzzle.
 - Guarded by `tests/install.js` and `tests/backbutton.js`.
 
+## Win celebration
+
+Stars, confetti and a chime on every solve — scaled to how well you did, not
+just a flat "you win."
+
+- `starPopHTML(n)` renders each star as its own element with a staggered
+  bounce-in delay, used only in the win banner. `starStr(n)` (plain "★★☆"
+  text) stays untouched — it also feeds share text and the header star
+  displays, both of which must stay plain text, not HTML.
+- Confetti is plain CSS/DOM: one shared `#confetti` fixed-position overlay
+  (`pointer-events:none` so it never blocks taps), repopulated with ~16
+  randomized pieces per win via `burstConfetti()`. No canvas, no library.
+- The chime is **synthesized**, not a shipped audio file — a few oscillator
+  tones via the Web Audio API, which keeps the "single self-contained file,
+  no extra assets" architecture intact. Note count scales with stars (2/3/4
+  notes for 1/2/3 stars). `AudioContext` is created lazily on first use, and
+  only actually reaches `"running"` state inside a real user gesture — the
+  Node test harness stubs an `AudioContext` to verify oscillator counts,
+  since browser autoplay policy has no equivalent in a fake DOM.
+- Sound is mutable and persisted (`localStorage['ms_sound_muted']`), toggled
+  from a speaker icon next to the language switcher. Confetti and stars are
+  not mutable — only sound needs an escape hatch for quiet places.
+- Guarded by `tests/celebrate.js`.
+
 ## Known gaps / backlog
 
-- **No animation, haptics or sound.** Sticks and cards teleport.
+- **No haptics**, and no animation on ordinary moves — sticks and cards still
+  teleport when placed. Only the win moment (stars/confetti/chime, above)
+  animates.
 - **Accessibility:** `user-scalable=no` blocks pinch-zoom; smallest text is 10.5px;
   hint/error/win are signalled by colour alone with no shape or text backup.
 - **Hints assume the canonical answer.** On the 38 multi-answer puzzles, starting
