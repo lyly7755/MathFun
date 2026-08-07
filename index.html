@@ -76,8 +76,14 @@
     background:none;border:none;color:var(--dim);font-size:19px;line-height:1;padding:0 2px;cursor:pointer
   }
 
-  /* ---- language switcher ---- */
-  .langsel{position:absolute;top:8px;right:8px;z-index:2}
+  /* ---- top bar: sound toggle + language switcher ---- */
+  .topbar{position:absolute;top:8px;right:8px;z-index:2;display:flex;gap:8px;align-items:center}
+  .soundbtn{
+    background:none;border:1px solid rgba(255,255,255,.15);color:var(--dim);
+    font-size:15px;padding:5px 9px;border-radius:8px;cursor:pointer;line-height:1
+  }
+  .soundbtn:active{background:rgba(255,255,255,.08)}
+  .langsel{position:relative}
   .langbtn{
     background:none;border:1px solid rgba(255,255,255,.15);color:var(--dim);font:inherit;
     font-size:12px;font-weight:700;letter-spacing:.5px;padding:5px 9px;border-radius:8px;cursor:pointer
@@ -169,6 +175,33 @@
   }
   .msg .sharebtn:active{background:rgba(255,209,102,.28)}
 
+  /* each star is its own element so animation-delay can stagger them -
+     starStr() (plain "★★☆" text, used for share text / header displays)
+     stays untouched; this is only for the win-banner HTML. */
+  .msg .big .starpop{
+    display:inline-block;opacity:0;
+    animation:starpop .5s cubic-bezier(.34,1.56,.64,1) forwards
+  }
+  @keyframes starpop{
+    0%{transform:scale(0) rotate(-25deg);opacity:0}
+    60%{transform:scale(1.3) rotate(8deg);opacity:1}
+    100%{transform:scale(1) rotate(0);opacity:1}
+  }
+
+  /* fixed full-viewport overlay so one #confetti element works for both
+     game screens; pointer-events:none so it never blocks taps */
+  .confetti{position:fixed;inset:0;pointer-events:none;z-index:50;overflow:hidden}
+  .confetti span{
+    position:absolute;top:50%;left:50%;width:7px;height:11px;background:var(--c,#ffd166);
+    transform:translate(-50%,-50%);
+    animation:confettifly .9s cubic-bezier(.2,.7,.4,1) both;
+    animation-delay:var(--d,0s)
+  }
+  @keyframes confettifly{
+    0%{transform:translate(-50%,-50%) rotate(0) scale(1);opacity:1}
+    100%{transform:translate(calc(-50% + var(--x)),calc(-50% + var(--y))) rotate(var(--r)) scale(.6);opacity:0}
+  }
+
   /* short phones (SE, and anything with the keyboard-less landscape squeeze) */
   @media (max-height:640px){
     header{padding:8px 12px 2px}
@@ -205,9 +238,12 @@
 <body>
 
 <div class="screen on" id="home">
-  <div class="langsel" id="langsel">
-    <button class="langbtn" id="langbtn">EN</button>
-    <div class="langlist" id="langlist"></div>
+  <div class="topbar" id="topbar">
+    <button class="soundbtn" id="soundbtn">🔊</button>
+    <div class="langsel" id="langsel">
+      <button class="langbtn" id="langbtn">EN</button>
+      <div class="langlist" id="langlist"></div>
+    </div>
   </div>
   <div class="title">
     <span class="i18n" data-i18n="appName">Math Fun</span>
@@ -318,6 +354,8 @@
     <button class="act primary" id="go">Skip &#8250;</button>
   </footer>
 </div>
+
+<div class="confetti" id="confetti"></div>
 
 <script>
 /* ---------- puzzle data: every level machine-verified by a brute-force solver ---------- */
@@ -859,6 +897,7 @@ function showHome(){
     + '<div><b>'+(msDone+gDone)+'</b><span>'+tr('statSolved')+'</span></div>';
   applyI18n();
   refreshInstallBar();
+  refreshSoundBtn();
 }
 function showMenu(){
   stopClock();
@@ -1195,8 +1234,9 @@ function check24(){
         shareBtn = ' <button class="sharebtn" data-share="g24">'+tr('shareBtn')+'</button>';
       }
       $('msg24').className='msg ok';
-      $('msg24').innerHTML='<span class="big">'+starStr(n)+'</span>24 &nbsp;&middot;&nbsp; '
+      $('msg24').innerHTML='<span class="big">'+starPopHTML(n)+'</span>24 &nbsp;&middot;&nbsp; '
                           +fmt(t)+' &nbsp;&middot;&nbsp; '+why+shareBtn;
+      celebrate(n);
       return;
     }
     flash24(tr('g24Makes',{v:fStr(v)}),'no');
@@ -1269,6 +1309,96 @@ function wireShare(msgEl, key){
   });
 }
 
+/* ---------- celebration: stars, confetti, sound on a win ----------
+   starStr() (plain "★★☆" text) stays exactly as-is - it feeds share text and
+   the header star displays, both of which must stay plain text. starPopHTML()
+   is a separate, HTML-producing function used only in the win banner, so nothing
+   that depends on plain-text stars is at risk of getting HTML tags instead. */
+function starPopHTML(n){
+  var out='';
+  for(var i=0;i<3;i++){
+    out += '<span class="starpop" style="animation-delay:'+(i*0.14).toFixed(2)+'s">'
+         + (i<n ? '★' : '☆') + '</span>';
+  }
+  return out;
+}
+
+var CONFETTI_COLORS = ['#ffd166','#5fbf7a','#f4cd97','#ffffff','#e08b7a'];
+function burstConfetti(){
+  var host = $('confetti');
+  if(!host) return;
+  var html='', i;
+  for(i=0;i<16;i++){
+    var angle = Math.random()*Math.PI*2, dist = 60+Math.random()*90;
+    var x = Math.cos(angle)*dist, y = Math.sin(angle)*dist - 40;   /* slight upward bias */
+    var rot = Math.round(Math.random()*360-180)+'deg';
+    var delay = (Math.random()*0.12).toFixed(2)+'s';
+    html += '<span style="--x:'+x.toFixed(0)+'px;--y:'+y.toFixed(0)+'px;--r:'+rot
+          + ';--c:'+CONFETTI_COLORS[i%CONFETTI_COLORS.length]+';--d:'+delay+'"></span>';
+  }
+  host.innerHTML = html;
+  /* only real browsers need the cleanup timer - in the Node test harness this
+     would just be a dangling setTimeout per solved puzzle, slowing every test
+     that solves many levels (verify.js solves 180) for no benefit. */
+  if(typeof window !== 'undefined'){
+    setTimeout(function(){ if(host) host.innerHTML=''; }, 1100);
+  }
+}
+
+/* synthesized, not a shipped audio file - keeps the "single self-contained
+   file, no extra assets" architecture intact. Fewer notes for a lower star
+   count, so the celebration scales with how well you actually did. */
+var audioCtx = null;
+function getAudioCtx(){
+  if(typeof window === 'undefined') return null;
+  try{
+    if(!audioCtx){
+      var Ctx = window.AudioContext || window.webkitAudioContext;
+      if(!Ctx) return null;
+      audioCtx = new Ctx();
+    }
+    if(audioCtx.state === 'suspended') audioCtx.resume();
+    return audioCtx;
+  }catch(err){ return null; }
+}
+function playTone(ctx, freq, startTime, duration){
+  var osc = ctx.createOscillator(), gain = ctx.createGain();
+  osc.type = 'sine';
+  osc.frequency.value = freq;
+  gain.gain.setValueAtTime(0, startTime);
+  gain.gain.linearRampToValueAtTime(0.2, startTime+0.02);
+  gain.gain.exponentialRampToValueAtTime(0.001, startTime+duration);
+  osc.connect(gain);
+  gain.connect(ctx.destination);
+  osc.start(startTime);
+  osc.stop(startTime+duration+0.02);
+}
+function playWinChime(stars){
+  if(soundMuted()) return;
+  var ctx = getAudioCtx();
+  if(!ctx) return;
+  var notes = stars>=3 ? [523.25,659.25,783.99,1046.50]
+            : stars===2 ? [523.25,659.25,783.99]
+            : [523.25,659.25];
+  var t = ctx.currentTime;
+  for(var i=0;i<notes.length;i++){ playTone(ctx, notes[i], t, 0.18); t += 0.11; }
+}
+function soundMuted(){
+  try{ return localStorage.getItem('ms_sound_muted')==='1'; }catch(err){ return false; }
+}
+function setSoundMuted(m){
+  try{ localStorage.setItem('ms_sound_muted', m ? '1' : '0'); }catch(err){}
+  refreshSoundBtn();
+}
+function refreshSoundBtn(){
+  var el = $('soundbtn');
+  if(el) el.textContent = soundMuted() ? '🔇' : '🔊';
+}
+function celebrate(stars){
+  burstConfetti();
+  playWinChime(stars);
+}
+
 /* ---------- interaction ---------- */
 board.addEventListener('click', function(ev){
   if(solved) return;
@@ -1336,8 +1466,9 @@ function check(){
       lastShare.match = shareText(tr('matchTitle'), n, t, dayNo());
       shareBtn = ' <button class="sharebtn" data-share="match">'+tr('shareBtn')+'</button>';
     }
-    $('msg').innerHTML = '<span class="big">'+starStr(n)+'</span>'
+    $('msg').innerHTML = '<span class="big">'+starPopHTML(n)+'</span>'
       + e + ' &nbsp;&middot;&nbsp; ' + fmt(t) + ' &nbsp;&middot;&nbsp; ' + why + shareBtn;
+    celebrate(n);
     return;
   }
   if(hist.length >= lev().m){
@@ -1407,6 +1538,7 @@ $('ops').addEventListener('click', function(ev){
 });
 wireShare($('msg'), 'match');
 wireShare($('msg24'), 'g24');
+$('soundbtn').onclick = function(){ setSoundMuted(!soundMuted()); };
 $('langbtn').onclick = function(){ $('langlist').classList.toggle('open'); };
 $('langlist').addEventListener('click', function(ev){
   var el=ev.target;

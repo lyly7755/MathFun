@@ -3,7 +3,7 @@ PY=python3; python3 -c "" 2>/dev/null || PY=python
 # Every suite. reverify is the slow one (exhaustive, ~3 min) - run it with: ./run-tests.sh --all
 set -u
 cd "$(dirname "$0")"
-FAST=(e24 g24 nav menu order daily stars deadtimer feedback loosecheck conserve verify hint backbutton share i18n install)
+FAST=(e24 g24 nav menu order daily stars deadtimer feedback loosecheck conserve verify hint backbutton share i18n install celebrate)
 SLOW=(reverify)
 fail=0
 for t in "${FAST[@]}"; do
